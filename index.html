@@ -238,7 +238,7 @@
             max-height: 500px;
             overflow-y: auto;
             box-shadow: inset 0 0 0 1px rgba(255,250,240,0.8);
-            scroll-behavior: smooth; /* 平滑滚动 */
+            scroll-behavior: smooth; /* 容器内部平滑滚动 */
         }
         .tree-node {
             margin-left: 1.4rem;
@@ -513,11 +513,13 @@
                 }
             }
 
-            // ---------- 滚动当前节点到视野中央 ----------
+            // ---------- 滚动当前节点到视野中央 (仅容器内部) ----------
             function scrollCurrentNodeIntoView() {
-                // 使用 requestAnimationFrame 确保 DOM 已完全渲染
                 requestAnimationFrame(() => {
-                    const rows = document.querySelectorAll('.node-row');
+                    const container = document.getElementById('jsonTree');
+                    if (!container) return;
+
+                    const rows = container.querySelectorAll('.node-row');
                     const targetRow = Array.from(rows).find(row => {
                         const pathAttr = row.getAttribute('data-path');
                         if (!pathAttr) return false;
@@ -528,9 +530,27 @@
                             return false;
                         }
                     });
-                    if (targetRow) {
-                        targetRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
-                    }
+
+                    if (!targetRow) return;
+
+                    // 计算目标在容器内的位置并滚动
+                    const containerRect = container.getBoundingClientRect();
+                    const targetRect = targetRow.getBoundingClientRect();
+
+                    // 目标相对于容器顶部的偏移量 (像素)
+                    const relativeTop = targetRect.top - containerRect.top;
+
+                    // 目标元素自身高度
+                    const targetHeight = targetRow.offsetHeight;
+
+                    // 目标应该滚动到的位置：当前滚动位置 + relativeTop - 容器高度的一半 + 目标高度的一半
+                    const targetScrollTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (targetHeight / 2);
+
+                    // 平滑滚动容器
+                    container.scrollTo({
+                        top: targetScrollTop,
+                        behavior: 'smooth'
+                    });
                 });
             }
 
@@ -540,7 +560,7 @@
                 renderBreadcrumb();
                 updateMatchCounter();
                 updateFilterUI();
-                scrollCurrentNodeIntoView();  // 新增：节点跳转后自动居中
+                scrollCurrentNodeIntoView();  // 仅容器内滚动，不影响body
             }
 
             // 标记当前节点
