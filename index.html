@@ -41,7 +41,7 @@
         .simple-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
         .simple-cm-container { border:1px solid #c9b6a2; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:200px; }
         .simple-cm-container .CodeMirror { height:200px; font-family:'Monaco',monospace; font-size:0.85rem; }
-        .help-icon { background:#cbb59e; border-radius:50%; width:1.8rem; height:1.8rem; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; margin-left:0.2rem; }
+        .help-icon { background:#cbb59e; border-radius:50%; width:1.8rem; height:1.8rem; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; cursor:help; margin-left:0.2rem; }
         .full-edit-panel { background:#e3d9ce; border-radius:40px; padding:1rem 1.5rem; margin:1rem 0; display:flex; flex-direction:column; gap:0.8rem; }
         .full-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
         .cm-editor-container { border:1px solid #b9a690; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:400px; }
@@ -134,7 +134,7 @@
             <div class="simple-panel-buttons">
                 <button class="btn" id="newNodeBtn">➕ 新建节点</button>
                 <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
-                <span class="help-icon" id="newNodeHelp">?</span>
+                <span class="help-icon" id="newNodeHelp" title="当前节点为数组：输入数组会合并到末尾，其他类型追加到末尾；当前节点为对象：只能输入对象进行合并，输入其他类型会报错">?</span>
             </div>
             <div class="simple-cm-container">
                 <textarea id="simpleEditor" placeholder="输入合法 JSON 插入到当前节点下…"></textarea>
@@ -629,25 +629,34 @@
         document.getElementById('newNodeBtn').onclick = () => {
             const raw = simpleEditor.getValue().trim();
             if (!raw) return showToast('请输入 JSON');
-            try { var parsed = JSON.parse(raw); } catch { return showToast('无效 JSON'); }
+            let parsed;
+            try { parsed = JSON.parse(raw); } catch { return showToast('无效 JSON'); }
             const nodeInfo = getNodeByPath(currentPath);
             if (!nodeInfo || nodeInfo.value === undefined) return showToast('当前节点无效');
             const target = nodeInfo.value;
             if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点');
-            modifyData(() => {
-                if (Array.isArray(target)) {
-                    if (Array.isArray(parsed)) target.push(...parsed);
-                    else target.push(parsed);
+
+            // 修改逻辑：当当前节点为对象时，只能插入纯对象进行合并
+            if (!Array.isArray(target)) { // 当前节点是对象
+                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    // 是纯对象，执行合并
+                    modifyData(() => {
+                        Object.assign(target, parsed);
+                        expandedSet.add(JSON.stringify(currentPath));
+                    });
                 } else {
-                    if (parsed && typeof parsed === 'object') Object.assign(target, parsed);
-                    else {
-                        let baseKey = 'newKey', c=1;
-                        while (baseKey in target) baseKey = `newKey${c++}`;
-                        target[baseKey] = parsed;
-                    }
+                    return showToast('当前节点为对象，只能插入对象（JSON 对象）进行合并');
                 }
-                expandedSet.add(JSON.stringify(currentPath));
-            });
+            } else { // 当前节点是数组
+                modifyData(() => {
+                    if (Array.isArray(parsed)) {
+                        target.push(...parsed);
+                    } else {
+                        target.push(parsed);
+                    }
+                    expandedSet.add(JSON.stringify(currentPath));
+                });
+            }
             simpleEditor.setValue('');
         };
 
@@ -663,7 +672,7 @@
             });
         };
 
-        document.getElementById('newNodeHelp').onclick = () => showToast('当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；为对象时：输入对象会合并，其他类型以newKey命名添加');
+        // 帮助按钮已使用 title 属性，无需 onclick
 
         document.getElementById('editCurrentNodeBtn').onclick = () => tryEditNode(currentPath);
         document.getElementById('pushNodeBtn').onclick = pushEditorToTree;
