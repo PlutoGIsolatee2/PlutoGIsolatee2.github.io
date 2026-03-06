@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 双面板最终版</title>
+    <title>🍞 SugarCube 存档编辑器 · 双面板最终优化版</title>
     <!-- lz-string & jsonpath-plus -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsonpath-plus@6.0.1/dist/index-browser-esm.min.js"></script>
@@ -11,8 +11,10 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/lint.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <!-- 编辑增强 addon -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/lint.min.js"></script>
@@ -21,6 +23,12 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/searchcursor.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+    <!-- 折叠相关 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldcode.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/foldgutter.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/fold/brace-fold.min.js"></script>
+    <!-- 格式化 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/format/formatting.min.js"></script>
     <!-- JSON lint -->
     <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
@@ -172,12 +180,10 @@
             border-radius: 24px;
             overflow: hidden;
             background: #fcf9f4;
-            max-height: 300px; /* 限制最大高度 */
+            max-height: 400px; /* 限制最大高度，同时让CodeMirror内部滚动 */
         }
         .CodeMirror {
-            height: auto;
-            min-height: 150px;
-            max-height: 300px;
+            height: 400px;      /* 固定高度，内部滚动 */
             font-family: 'Monaco', monospace;
             font-size: 0.9rem;
         }
@@ -318,20 +324,13 @@
             border-radius: 30px;
             cursor: default;
             white-space: nowrap;
-            width: max-content;  /* 宽度由内容决定，保证背景覆盖内容 */
-            min-width: 100%;     /* 但保证至少占满父容器宽度（如果内容少） */
+            width: max-content;
+            min-width: 100%;
             box-sizing: border-box;
         }
         .node-row.current-node {
             background: #efe4d7;
             outline: 1px solid #c9aa8b;
-            /* 移除负边距，通过父容器缩进自然延伸 */
-        }
-        /* 移动端调整：确保背景从左边0开始，但保留缩进 */
-        @media (max-width: 600px) {
-            .node-row.current-node {
-                /* 无需特殊处理，背景已覆盖内容区 */
-            }
         }
         .toggle {
             width: 1.2rem;
@@ -356,7 +355,6 @@
             border-radius: 30px;
             padding: 0.1rem 0.8rem;
             display: inline-block;
-            /* 完全显示，不省略 */
             max-width: none;
             overflow: visible;
             text-overflow: clip;
@@ -440,7 +438,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 双面板最终版</h1>
+        <h1>🍞 SugarCube 存档 · 双面板最终优化版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -453,28 +451,6 @@
             <button class="btn" id="downloadBase64Btn">下载txt</button>
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
-
-        <!-- 简单编辑面板 (新建/删除节点 + 文本区) -->
-        <div class="simple-edit-panel">
-            <div class="simple-panel-buttons">
-                <button class="btn" id="newNodeBtn">➕ 新建节点</button>
-                <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
-                <span class="help-icon" id="newNodeHelp">?</span>
-            </div>
-            <textarea id="simpleTextarea" class="simple-textarea" placeholder='输入合法 JSON 插入到当前节点下…'></textarea>
-        </div>
-
-        <!-- 全量编辑面板 (CodeMirror) -->
-        <div class="full-edit-panel">
-            <div class="full-panel-buttons">
-                <button class="btn" id="editCurrentNodeBtn">✎ 编辑当前节点</button>
-                <button class="btn" id="pushNodeBtn">⏎ 推送修改</button>
-                <button class="btn" id="clearEditorBtn">🗑️ 清空编辑器</button>
-            </div>
-            <div class="cm-editor-container">
-                <textarea id="nodeEditor" placeholder="当前节点的 JSON 表示..."></textarea>
-            </div>
-        </div>
 
         <!-- 搜索面板 -->
         <div class="search-panel">
@@ -503,6 +479,31 @@
         <!-- json 树区域 -->
         <div id="jsonTree" class="json-tree"></div>
 
+        <!-- 简单编辑面板 (新建/删除节点 + 文本区) 置于树下方 -->
+        <div class="simple-edit-panel">
+            <div class="simple-panel-buttons">
+                <button class="btn" id="newNodeBtn">➕ 新建节点</button>
+                <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
+                <span class="help-icon" id="newNodeHelp">?</span>
+            </div>
+            <textarea id="simpleTextarea" class="simple-textarea" placeholder='输入合法 JSON 插入到当前节点下…'></textarea>
+        </div>
+
+        <!-- 全量编辑面板 (CodeMirror) 置于简单面板下方 -->
+        <div class="full-edit-panel">
+            <div class="full-panel-buttons">
+                <button class="btn" id="editCurrentNodeBtn">✎ 编辑当前节点</button>
+                <button class="btn" id="pushNodeBtn">⏎ 推送修改</button>
+                <button class="btn" id="clearEditorBtn">🗑️ 清空编辑器</button>
+                <button class="btn" id="cmUndoBtn">↩ 撤销</button>
+                <button class="btn" id="cmRedoBtn">↪ 重做</button>
+                <button class="btn" id="cmFormatBtn">✨ 格式化</button>
+            </div>
+            <div class="cm-editor-container">
+                <textarea id="nodeEditor" placeholder="当前节点的 JSON 表示..."></textarea>
+            </div>
+        </div>
+
         <!-- 悬浮按钮组 -->
         <div class="float-buttons">
             <button class="btn btn-undo" id="undoBtn">↩</button>
@@ -514,7 +515,10 @@
 
     <script>
         (function() {
-            const { JSONPath } = window;
+            // 修正 JSONPath 引用
+            const jp = (typeof window.JSONPath === 'function' ? window.JSONPath : 
+                       (window.JSONPath && window.JSONPath.JSONPath ? window.JSONPath.JSONPath : null));
+            if (!jp) console.warn('JSONPath library not loaded correctly');
 
             // ----- 核心编解码 -----
             function decodeSugarCubeSave(base64String) {
@@ -566,19 +570,27 @@
                     autoCloseBrackets: true,
                     matchBrackets: true,
                     styleActiveLine: true,
-                    gutters: ['CodeMirror-lint-markers'],
+                    gutters: ['CodeMirror-lint-markers', 'CodeMirror-foldgutter'],
                     lint: true,
+                    foldGutter: true,
                     extraKeys: {
                         'Ctrl-Space': 'autocomplete',
                         'Cmd-/': 'toggleComment',
                         'Ctrl-F': 'findPersistent',
                         'Ctrl-G': 'findNext',
-                        'Shift-Ctrl-G': 'findPrev'
+                        'Shift-Ctrl-G': 'findPrev',
+                        'Ctrl-Q': function(cm) { cm.foldCode(cm.getCursor()); }
                     }
                 });
                 cmEditor.on('change', () => {
                     editorDirty = true;
                 });
+            }
+
+            // 格式化 CodeMirror 内容
+            function formatCode() {
+                let totalLines = cmEditor.lineCount();
+                cmEditor.autoFormatRange({line:0, ch:0}, {line:totalLines-1});
             }
 
             // 将当前节点加载到编辑器（带大节点确认）
@@ -1111,6 +1123,21 @@
                 }
             };
 
+            // 全量面板：撤销
+            document.getElementById('cmUndoBtn').onclick = () => {
+                cmEditor.undo();
+            };
+
+            // 全量面板：重做
+            document.getElementById('cmRedoBtn').onclick = () => {
+                cmEditor.redo();
+            };
+
+            // 全量面板：格式化
+            document.getElementById('cmFormatBtn').onclick = () => {
+                formatCode();
+            };
+
             // JSONPath 切换
             function updateJsonpathToggle() {
                 const btn = document.getElementById('jsonpathToggleBtn');
@@ -1133,7 +1160,8 @@
                 let matches = [];
                 if (jsonpathMode) {
                     try {
-                        const pathResults = JSONPath({ path: term, json: rootWrapper, resultType: 'path' });
+                        if (!jp) throw new Error('JSONPath library not available');
+                        const pathResults = jp({ path: term, json: rootWrapper, resultType: 'path' });
                         matches = pathResults.map(p => {
                             const parts = p.replace(/^\$\[?/, '').split(/\]\['?|'\]\[|'\]|\[/).filter(s => s && s !== '');
                             return ['root', ...parts];
@@ -1294,7 +1322,7 @@
                 URL.revokeObjectURL(a.href);
             };
 
-            // 撤销/恢复
+            // 全局撤销/恢复（树）
             document.getElementById('undoBtn').onclick = undo;
             document.getElementById('redoBtn').onclick = redo;
             document.getElementById('decodeFloatBtn').onclick = decodeFromBase64;
