@@ -474,13 +474,12 @@
             saveStateToDB();
         }
 
-        // 设置当前路径，更新高亮和面包屑，并滚动到视图
         function setCurrentPath(path) {
             if (!path) return;
             currentPath = path.slice();
             updateCurrentNodeHighlight();
             renderBreadcrumb();
-            scrollCurrentNodeIntoView();  // 确保点击面包屑后滚动
+            scrollCurrentNodeIntoView();
             saveStateToDB();
         }
 
@@ -591,36 +590,30 @@
             return li;
         }
 
-        // 面包屑：显示格式 $, $/root, $/root/state, 等
+        // 面包屑：显示为 $ / root / state ...
         function renderBreadcrumb() {
             const bread = document.getElementById('breadcrumb');
             bread.innerHTML = '';
-            let acc = [];
             for (let i = 0; i < currentPath.length; i++) {
-                acc.push(currentPath[i]);
-                // 生成显示文本
-                let display;
-                if (acc.length === 1) {
-                    display = '$';
-                } else {
-                    display = '$/' + acc.join('/');
-                }
+                const part = currentPath[i];
+                const display = (i === 0) ? '$' : part;
                 const crumb = document.createElement('span');
                 crumb.className = 'crumb-item';
                 crumb.textContent = display;
-                crumb.dataset.path = JSON.stringify(acc.slice());
+                crumb.dataset.path = JSON.stringify(currentPath.slice(0, i + 1));
                 crumb.onclick = (e) => {
                     const p = JSON.parse(e.target.dataset.path);
                     setCurrentPath(p);
-                    // 如果目标节点是容器，则展开它（但setCurrentPath不会自动展开，用户可能需要手动点击展开按钮）
-                    // 为方便，自动展开该节点（如果它是容器）
+                    // 如果目标节点是容器，自动展开
                     const nodeInfo = getNodeByPath(p);
                     if (nodeInfo.value && typeof nodeInfo.value === 'object') {
                         expandedSet.add(JSON.stringify(p));
                     }
                 };
                 bread.appendChild(crumb);
-                if (i < currentPath.length - 1) bread.appendChild(document.createTextNode(' / '));
+                if (i < currentPath.length - 1) {
+                    bread.appendChild(document.createTextNode(' / '));
+                }
             }
         }
 
