@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 完全体</title>
-    <!-- lz-string & jsonpath-plus -->
+    <title>🍞 SugarCube 存档编辑器 · 性能优化版</title>
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsonpath-plus@6.0.1/dist/index-browser-esm.min.js"></script>
     <style>
@@ -95,7 +94,7 @@
             background: #fffcf8;
         }
 
-        /* 节点编辑面板 (合并新建/删除 + textarea) */
+        /* 节点编辑面板 */
         .node-edit-panel {
             background: #ece3d9;
             border-radius: 40px;
@@ -135,7 +134,7 @@
             margin-left: 0.2rem;
         }
 
-        /* 搜索面板 + JSONPath 切换 */
+        /* 搜索面板 */
         .search-panel {
             display: flex;
             flex-wrap: wrap;
@@ -266,9 +265,17 @@
             padding: 0.2rem 0.1rem;
             border-radius: 30px;
             cursor: default;
-            white-space: nowrap; /* 确保键名不换行，通过外部滚动查看 */
+            white-space: nowrap;
+            width: 100%;
+            box-sizing: border-box;
         }
-        .node-row.current-node { background: #efe4d7; outline: 1px solid #c9aa8b; }
+        .node-row.current-node {
+            background: #efe4d7;
+            outline: 1px solid #c9aa8b;
+            /* 确保背景从左边距开始 */
+            margin-left: -0.1rem; /* 微调对齐 */
+            padding-left: calc(0.1rem + 0.1rem); /* 补偿 */
+        }
         .toggle {
             width: 1.2rem;
             display: inline-block;
@@ -281,7 +288,6 @@
             font-weight: 600;
             color: #684e3a;
             cursor: pointer;
-            /* 无省略，完全显示 */
         }
         .colon { margin-right: 4px; }
         .value-block {
@@ -311,7 +317,7 @@
         .node-summary { color: #906f54; font-size: 0.85rem; cursor: pointer; }
         .null-value { color: #9a887b; font-style: italic; }
 
-        /* 悬浮按钮组 (撤销/恢复/解/编) */
+        /* 悬浮按钮组 */
         .float-buttons {
             position: fixed;
             bottom: 2rem;
@@ -374,7 +380,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 完全体</h1>
+        <h1>🍞 SugarCube 存档 · 性能优化版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -388,7 +394,7 @@
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
 
-        <!-- 节点编辑面板 (新建/删除 + textarea) 置于树下方 -->
+        <!-- 节点编辑面板 -->
         <div class="node-edit-panel">
             <div class="panel-buttons">
                 <button class="btn" id="newNodeBtn">➕ 新建节点</button>
@@ -398,7 +404,7 @@
             <textarea id="newNodeTextarea" class="node-edit-textarea" placeholder='输入合法 JSON 插入到当前节点下…'></textarea>
         </div>
 
-        <!-- 搜索面板 + JSONPath 切换 -->
+        <!-- 搜索面板 -->
         <div class="search-panel">
             <div class="search-wrapper">
                 <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath ($.xxx)'>
@@ -425,7 +431,7 @@
         <!-- json 树区域 -->
         <div id="jsonTree" class="json-tree"></div>
 
-        <!-- 悬浮按钮组 (撤销/恢复/解/编) -->
+        <!-- 悬浮按钮组 -->
         <div class="float-buttons">
             <button class="btn btn-undo" id="undoBtn">↩</button>
             <button class="btn btn-redo" id="redoBtn">↪</button>
@@ -436,8 +442,7 @@
 
     <script>
         (function() {
-            // ----- 依赖库：LZString 和 JSONPath (通过全局) -----
-            const { JSONPath } = window;  // jsonpath-plus 暴露为全局
+            const { JSONPath } = window;
 
             // ----- 核心编解码 -----
             function decodeSugarCubeSave(base64String) {
@@ -455,24 +460,24 @@
             let currentPath = ['root'];
             let expandedSet = new Set();
 
-            // 历史记录 (版本控制)
-            let historyStack = [];          // 存储 rootWrapper 的快照
-            let historyIndex = -1;           // 当前所处位置
+            // 历史记录
+            let historyStack = [];
+            let historyIndex = -1;
             const MAX_HISTORY = 50;
 
             // 搜索结果
             let matchPaths = [];
             let matchIndex = -1;
             let lastSearchTerm = '';
-            let jsonpathMode = false;        // false=文本, true=JSONPath
+            let jsonpathMode = false;
 
             // 黑白名单
             let whiteListPaths = new Set();
             let blackListPaths = new Set();
             let filterMode = 'none';
 
-            // 节点类型映射 (存储每个路径的当前显示/编辑类型)
-            let nodeTypeMap = new Map();      // key: pathStr, value: 'string'|'number'|'boolean'|'null'|'object'|'array'
+            // 节点类型映射
+            let nodeTypeMap = new Map();
 
             // ----- IndexedDB 初始化 -----
             const DB_NAME = 'SugarCubeEditorDB';
@@ -549,17 +554,17 @@
                     lastSearchTerm = saved.lastSearchTerm || '';
                     matchPaths = saved.matchPaths || [];
                     matchIndex = saved.matchIndex !== undefined ? saved.matchIndex : -1;
-                    refreshUI();
+                    // 初始渲染
+                    fullRender();
                     updateJsonpathToggle();
                 } else {
-                    // 初始历史快照
                     pushHistory();
+                    fullRender();
                 }
             }).catch(console.warn);
 
             // ----- 历史管理 -----
             function pushHistory() {
-                // 将当前 rootWrapper 深拷贝推入栈，并丢弃后面的
                 const snapshot = cloneDeep(rootWrapper);
                 if (historyIndex < historyStack.length - 1) {
                     historyStack = historyStack.slice(0, historyIndex + 1);
@@ -574,7 +579,7 @@
                 if (historyIndex > 0) {
                     historyIndex--;
                     rootWrapper = cloneDeep(historyStack[historyIndex]);
-                    refreshUI();
+                    fullRender();
                     saveStateToDB();
                 } else {
                     showToast('没有上一步');
@@ -585,18 +590,16 @@
                 if (historyIndex < historyStack.length - 1) {
                     historyIndex++;
                     rootWrapper = cloneDeep(historyStack[historyIndex]);
-                    refreshUI();
+                    fullRender();
                     saveStateToDB();
                 } else {
                     showToast('没有下一步');
                 }
             }
 
-            // 包装数据修改操作：执行修改后 pushHistory 并刷新
-            function modifyData(callback) {
-                callback();
-                pushHistory();
-                refreshUI();
+            // 深拷贝
+            function cloneDeep(obj) {
+                return JSON.parse(JSON.stringify(obj));
             }
 
             // ----- 辅助函数 -----
@@ -623,20 +626,15 @@
                 return false;
             }
 
-            function cloneDeep(obj) {
-                return JSON.parse(JSON.stringify(obj));
-            }
-
             function arrayEquals(a, b) {
                 return a.length === b.length && a.every((v,i)=> v===b[i]);
             }
 
-            // 智能解析为指定类型
             function parseAsType(str, type) {
                 if (type === 'string') return str;
                 if (type === 'number') {
                     const num = Number(str);
-                    return isNaN(num) ? str : num; // 若转换失败返回原字符串
+                    return isNaN(num) ? str : num;
                 }
                 if (type === 'boolean') {
                     if (str.toLowerCase() === 'true') return true;
@@ -645,32 +643,41 @@
                 }
                 if (type === 'null') return null;
                 if (type === 'object' || type === 'array') {
-                    try {
-                        return JSON.parse(str);
-                    } catch {
-                        return str;
-                    }
+                    try { return JSON.parse(str); } catch { return str; }
                 }
                 return str;
             }
 
-            // 获取当前节点类型 (默认从映射取，否则根据值推断)
             function getNodeType(path, value) {
                 const pathStr = JSON.stringify(path);
                 if (nodeTypeMap.has(pathStr)) return nodeTypeMap.get(pathStr);
                 if (value === null) return 'null';
                 if (Array.isArray(value)) return 'array';
                 if (typeof value === 'object') return 'object';
-                return typeof value; // string, number, boolean
+                return typeof value;
             }
 
-            // 设置节点类型映射
             function setNodeType(path, type) {
-                const pathStr = JSON.stringify(path);
-                nodeTypeMap.set(pathStr, type);
+                nodeTypeMap.set(JSON.stringify(path), type);
             }
 
-            // ----- 滚动节点到视野中央 (横向+纵向) -----
+            // ----- 高亮更新（仅切换 current-node 类，不重建树）-----
+            function updateCurrentNodeHighlight() {
+                const rows = document.querySelectorAll('.node-row');
+                rows.forEach(row => row.classList.remove('current-node'));
+                const targetRow = Array.from(rows).find(row => {
+                    const pathAttr = row.getAttribute('data-path');
+                    if (!pathAttr) return false;
+                    try { return arrayEquals(JSON.parse(pathAttr), currentPath); }
+                    catch { return false; }
+                });
+                if (targetRow) {
+                    targetRow.classList.add('current-node');
+                    scrollCurrentNodeIntoView();
+                }
+            }
+
+            // 滚动当前节点到视野中央
             function scrollCurrentNodeIntoView() {
                 requestAnimationFrame(() => {
                     const container = document.getElementById('jsonTree');
@@ -687,12 +694,10 @@
                     const containerRect = container.getBoundingClientRect();
                     const targetRect = targetRow.getBoundingClientRect();
 
-                    // 垂直居中
                     const relativeTop = targetRect.top - containerRect.top;
                     const targetHeight = targetRow.offsetHeight;
                     const targetScrollTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (targetHeight / 2);
 
-                    // 水平居中
                     const relativeLeft = targetRect.left - containerRect.left;
                     const targetWidth = targetRow.offsetWidth;
                     const targetScrollLeft = container.scrollLeft + relativeLeft - (container.clientWidth / 2) + (targetWidth / 2);
@@ -712,22 +717,34 @@
                 setTimeout(() => toast.remove(), duration);
             }
 
-            // ----- 刷新UI -----
-            function refreshUI() {
+            // ----- 全量渲染（用于初始加载或大规模变动）-----
+            function fullRender() {
                 renderTree();
                 renderBreadcrumb();
                 updateMatchCounter();
                 updateFilterUI();
                 scrollCurrentNodeIntoView();
-                saveStateToDB(); // 自动保存
+                saveStateToDB();
             }
 
+            // 仅刷新轻量级UI（面包屑、计数器、筛选按钮，不重绘树）
+            function refreshLightUI() {
+                renderBreadcrumb();
+                updateMatchCounter();
+                updateFilterUI();
+                saveStateToDB();
+            }
+
+            // 设置当前路径并仅更新高亮
             function setCurrentPath(path) {
+                if (!path) return;
                 currentPath = path.slice();
-                refreshUI();
+                updateCurrentNodeHighlight();
+                renderBreadcrumb(); // 面包屑需要更新
+                saveStateToDB();
             }
 
-            // ----- 树渲染 (带类型切换) -----
+            // ----- 树渲染（全量构建）-----
             function renderTree() {
                 const container = document.getElementById('jsonTree');
                 container.innerHTML = '';
@@ -751,13 +768,15 @@
                     toggleSpan.onclick = (e) => {
                         e.stopPropagation();
                         const strPath = JSON.stringify(path);
-                        expandedSet.has(strPath) ? expandedSet.delete(strPath) : expandedSet.add(strPath);
-                        renderTree(); renderBreadcrumb();
+                        if (expandedSet.has(strPath)) expandedSet.delete(strPath);
+                        else expandedSet.add(strPath);
+                        // 展开折叠时局部更新：重新渲染该节点下的子树，但为简单，全量渲染
+                        // 可以优化为只更新该节点，但考虑到性能影响不大，暂时保留全量
+                        fullRender();
                     };
                 } else toggleSpan.textContent = '  ';
                 row.appendChild(toggleSpan);
 
-                // 键名
                 const keySpan = document.createElement('span');
                 keySpan.className = 'key';
                 keySpan.textContent = key;
@@ -766,7 +785,6 @@
                 row.appendChild(document.createElement('span')).className = 'colon';
                 row.lastChild.textContent = ':';
 
-                // 值区域
                 if (isCollapsible) {
                     const summary = Array.isArray(value) ? `Array(${value.length})` : 'Object';
                     const valSpan = document.createElement('span');
@@ -778,14 +796,12 @@
                     const valueBlock = document.createElement('span');
                     valueBlock.className = 'value-block';
 
-                    // 类型徽章
                     const currentType = getNodeType(path, value);
                     const typeBadge = document.createElement('span');
                     typeBadge.className = 'type-badge';
                     typeBadge.textContent = currentType;
                     typeBadge.onclick = (e) => {
                         e.stopPropagation();
-                        // 循环切换类型
                         const types = ['string', 'number', 'boolean', 'null', 'object', 'array'];
                         let idx = types.indexOf(currentType);
                         idx = (idx + 1) % types.length;
@@ -794,15 +810,15 @@
                         let newValue;
                         try {
                             if (newType === 'object' || newType === 'array') {
-                                // 尝试解析当前字符串为JSON
                                 newValue = JSON.parse(String(oldValue));
                             } else {
                                 newValue = parseAsType(String(oldValue), newType);
                             }
                         } catch {
-                            newValue = oldValue; // 保留原样
+                            newValue = oldValue;
                             showToast(`无法转换为${newType}，已保留原值`);
                         }
+                        // 类型切换可能导致结构变化，简单全量渲染
                         modifyData(() => {
                             setNodeType(path, newType);
                             setValueByPath(path, newValue);
@@ -810,7 +826,6 @@
                     };
                     valueBlock.appendChild(typeBadge);
 
-                    // 输入框
                     const input = document.createElement('input');
                     input.type = 'text';
                     input.className = 'value-edit';
@@ -827,16 +842,27 @@
                         try {
                             parsed = parseAsType(raw, currentType);
                         } catch {
-                            parsed = raw; // fallback
+                            parsed = raw;
                         }
-                        // 如果解析后的类型与期望不符，提示但仍保存
                         const actualType = parsed === null ? 'null' : typeof parsed;
                         if (actualType !== currentType && !(currentType === 'object' && actualType === 'array')) {
                             showToast(`输入值类型(${actualType})与当前类型(${currentType})不符，但已保存`);
                         }
-                        modifyData(() => {
-                            setValueByPath(targetPath, parsed);
-                        });
+                        // 如果值改变且类型不变（简单类型），我们可以只更新输入框的值，避免全量重绘
+                        if (actualType === currentType && !Array.isArray(parsed) && typeof parsed !== 'object') {
+                            // 直接更新数据并修改DOM
+                            modifyDataWithoutRender(() => {
+                                setValueByPath(targetPath, parsed);
+                            });
+                            // 更新输入框显示（其实输入框已经是最新，但以防解析后格式变化）
+                            e.target.value = String(parsed);
+                            // 类型徽章可能不变，无需更新
+                        } else {
+                            // 类型变化或变成对象，全量渲染
+                            modifyData(() => {
+                                setValueByPath(targetPath, parsed);
+                            });
+                        }
                     });
                     valueBlock.appendChild(input);
                     row.appendChild(valueBlock);
@@ -860,6 +886,22 @@
                 return li;
             }
 
+            // 修改数据但不全量渲染（用于简单值更新）
+            function modifyDataWithoutRender(callback) {
+                callback();
+                pushHistory();  // 记录历史
+                // 不调用 fullRender，仅更新轻量UI
+                refreshLightUI();
+                // 但当前节点高亮可能不变，无需额外操作
+            }
+
+            // 修改数据并全量渲染（用于结构变化）
+            function modifyData(callback) {
+                callback();
+                pushHistory();
+                fullRender();
+            }
+
             // 面包屑
             function renderBreadcrumb() {
                 const bread = document.getElementById('breadcrumb');
@@ -875,17 +917,19 @@
                     crumb.onclick = (e) => {
                         const p = JSON.parse(e.target.dataset.path);
                         setCurrentPath(p);
-                        if (getNodeByPath(p).value && typeof getNodeByPath(p).value === 'object') {
+                        const nodeInfo = getNodeByPath(p);
+                        if (nodeInfo.value && typeof nodeInfo.value === 'object') {
                             expandedSet.add(JSON.stringify(p));
                         }
-                        refreshUI();
+                        // 如果点击的面包屑是容器，可能需要展开，但我们只切换高亮，展开状态通过 expandedSet 控制，需要重新渲染？但 setCurrentPath 不会重绘树，所以需要手动更新展开状态？这里暂时不自动展开，让用户手动点击展开。如果希望自动展开，可以调用 fullRender，但为了性能，我们只更新高亮，展开状态保持不变。
+                        // 但为了看到子节点，用户可能需要点击展开按钮。合理。
                     };
                     bread.appendChild(crumb);
                     if (i < currentPath.length - 1) bread.appendChild(document.createTextNode(' / '));
                 }
             }
 
-            // 黑白名单UI更新
+            // 筛选UI更新
             function updateFilterUI() {
                 const toggleBtn = document.getElementById('toggleFilterModeBtn');
                 toggleBtn.textContent = filterMode === 'none' ? '🔘 未启用' : (filterMode === 'whitelist' ? '⚪ 启用白名单' : '⚫ 启用黑名单');
@@ -927,21 +971,14 @@
                 if (lastSearchTerm) search(lastSearchTerm);
             };
 
-            // 搜索函数 (支持文本和JSONPath)
+            // 搜索函数
             function search(term) {
-                if (!term.trim()) { matchPaths = []; matchIndex = -1; refreshUI(); return; }
+                if (!term.trim()) { matchPaths = []; matchIndex = -1; fullRender(); return; }
                 let matches = [];
                 if (jsonpathMode) {
                     try {
-                        const results = JSONPath({ path: term, json: rootWrapper });
-                        // results 是值数组，需要转成路径
-                        // 简单起见，只支持返回路径？JSONPath可以返回路径，但需要设置resultType: 'path'。
-                        // 这里用另一种方式：遍历并匹配值？但需求是JSONPath-Plus模式，我们简单使用库返回路径。
-                        // 由于JSONPath直接返回路径字符串如 "$['root']['state']"，我们可以转换。
-                        // 但为了兼容，我们改用JSONPath的路径格式，并转换为数组路径。
                         const pathResults = JSONPath({ path: term, json: rootWrapper, resultType: 'path' });
                         matches = pathResults.map(p => {
-                            // 路径格式类似 "$['root']['key']" 或 "$[0]" ，转换为数组
                             const parts = p.replace(/^\$\[?/, '').split(/\]\['?|'\]\[|'\]|\[/).filter(s => s && s !== '');
                             return ['root', ...parts];
                         });
@@ -976,7 +1013,7 @@
                 matchPaths = matches;
                 matchIndex = matchPaths.length > 0 ? 0 : -1;
                 if (matchIndex >= 0) jumpToMatch(matchIndex);
-                else refreshUI();
+                else fullRender();
                 updateMatchCounter();
             }
 
@@ -990,7 +1027,9 @@
                     if (getNodeByPath(anc).value && typeof getNodeByPath(anc).value === 'object')
                         expandedSet.add(JSON.stringify(anc));
                 }
-                setCurrentPath(path);
+                // 跳转时由于需要展开，必须全量渲染
+                setCurrentPath(path);  // 先更新高亮
+                fullRender();           // 重新渲染以展开节点
             }
 
             function updateMatchCounter() {
@@ -999,6 +1038,7 @@
 
             function isPathAllowed(path) {
                 if (filterMode === 'none') return true;
+                const pathStr = JSON.stringify(path);
                 if (filterMode === 'whitelist') {
                     for (let i=1; i<=path.length; i++) if (whiteListPaths.has(JSON.stringify(path.slice(0,i)))) return true;
                     return false;
@@ -1033,7 +1073,7 @@
                 else { whiteListPaths.clear(); blackListPaths.clear(); }
                 showToast('名单已清空');
                 if (lastSearchTerm) search(lastSearchTerm);
-                else refreshUI();
+                else fullRender();
             }
 
             // 新建节点
@@ -1064,7 +1104,7 @@
                 document.getElementById('newNodeTextarea').value = '';
             }
 
-            // 解码并自动推历史
+            // 解码
             function decodeFromBase64() {
                 const base64 = document.getElementById('base64Input').value.trim();
                 if (!base64) return showToast('Base64 为空');
@@ -1096,7 +1136,7 @@
             document.getElementById('pasteBase64Btn').onclick = () => {
                 navigator.clipboard.readText().then(text => {
                     document.getElementById('base64Input').value = text;
-                    decodeFromBase64(); // 自动解码
+                    decodeFromBase64();
                 }).catch(() => showToast('无法读取剪贴板'));
             };
 
@@ -1107,7 +1147,7 @@
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     document.getElementById('base64Input').value = ev.target.result;
-                    decodeFromBase64(); // 自动解码
+                    decodeFromBase64();
                 };
                 reader.readAsText(file);
             });
@@ -1150,9 +1190,8 @@
             document.getElementById('toggleFilterModeBtn').onclick = toggleFilterMode;
             document.getElementById('clearFilterBtn').onclick = clearCurrentFilter;
 
-            // 初始化
-            refreshUI();
-            updateJsonpathToggle();
+            // 初始化渲染
+            // fullRender 已经在加载DB后调用
         })();
     </script>
 </body>
