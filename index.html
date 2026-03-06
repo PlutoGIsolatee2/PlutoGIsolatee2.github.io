@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 最终修复版</title>
+    <title>🍞 SugarCube 存档编辑器 · 最终版 (跳转修复)</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
-    <!-- CodeMirror 核心和依赖 (静态资源，无需模块) -->
+    <!-- CodeMirror 核心和依赖 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/lint.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
@@ -898,6 +898,7 @@
         function setCurrentPath(path) {
             if (!path) return;
             currentPath = path.slice();
+            // 仅用于点击节点时的轻量更新，不重新渲染树
             updateCurrentNodeHighlight();
             renderBreadcrumb();
             saveStateToDB();
@@ -1174,63 +1175,24 @@
             if (lastSearchTerm) search(lastSearchTerm);
         };
 
-        // 将 JSONPath 路径字符串转换为内部路径数组（修复版）
-        function jsonpathToInternalPath(pathStr) {
-            // 移除开头的 '$'，然后按括号和点分割
-            let cleaned = pathStr.replace(/^\$/, '');
-            if (!cleaned) return ['root']; // 如果只有 $，表示根
-
-            // 处理两种常见格式：点号 .prop 和 括号 ['prop'] 或 ["prop"] 或 [数字]
-            const parts = [];
-            let current = '';
-            let inBracket = false;
-            let bracketType = ''; // 单引号或双引号或无（数字）
-            for (let i = 0; i < cleaned.length; i++) {
-                const ch = cleaned[i];
-                if (ch === '[' && !inBracket) {
-                    if (current) {
-                        parts.push(current);
-                        current = '';
-                    }
-                    inBracket = true;
-                    bracketType = '';
-                } else if (ch === ']' && inBracket) {
-                    if (current) {
-                        // 去掉可能的引号
-                        if ((current.startsWith("'") && current.endsWith("'")) || (current.startsWith('"') && current.endsWith('"'))) {
-                            current = current.slice(1, -1);
-                        }
-                        parts.push(current);
-                        current = '';
-                    }
-                    inBracket = false;
-                } else if (ch === '.' && !inBracket) {
-                    if (current) {
-                        parts.push(current);
-                        current = '';
-                    }
-                } else {
-                    current += ch;
-                }
-            }
-            if (current) parts.push(current);
-            return ['root', ...parts];
-        }
-
-        // 搜索函数 (使用导入的 JSONPath，并设置安全选项)
+        // 搜索函数 (使用 JSONPath 的 pointer 结果，避免复杂解析)
         function search(term) {
             if (!term.trim()) { matchPaths = []; matchIndex = -1; fullRender(); return; }
             let matches = [];
             if (jsonpathMode) {
                 try {
-                    // 使用安全选项：preventEval: true 防止执行代码，结果类型为路径
-                    const pathResults = JSONPath({ 
+                    // 使用 pointer 结果，格式如 /root/store/book/0/title
+                    const pointers = JSONPath({ 
                         path: term, 
                         json: rootWrapper, 
-                        resultType: 'path',
+                        resultType: 'pointer',
                         preventEval: true  // 禁止执行脚本，只读查询
                     });
-                    matches = pathResults.map(p => jsonpathToInternalPath(p));
+                    matches = pointers.map(p => {
+                        // 去除开头的 '/'
+                        let parts = p.slice(1).split('/').map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'));
+                        return ['root', ...parts];
+                    });
                 } catch (e) {
                     showToast('JSONPath 错误: ' + e.message);
                 }
@@ -1265,11 +1227,13 @@
             updateMatchCounter();
         }
 
+        // 跳转到指定匹配项（修复：直接赋值 currentPath 并全量渲染）
         function jumpToMatch(idx) {
             if (!matchPaths.length) return;
             matchIndex = idx;
             const path = matchPaths[idx];
             expandedSet.clear();
+            // 展开所有祖先节点
             for (let i = 1; i <= path.length; i++) {
                 const anc = path.slice(0, i);
                 const node = getNodeByPath(anc).value;
@@ -1277,8 +1241,9 @@
                     expandedSet.add(JSON.stringify(anc));
                 }
             }
-            setCurrentPath(path);
-            fullRender(); // 重新渲染以展开节点
+            // 直接设置当前路径并全量渲染（避免调用 setCurrentPath，因为 setCurrentPath 只做轻量更新）
+            currentPath = path;
+            fullRender();
         }
 
         function updateMatchCounter() {
