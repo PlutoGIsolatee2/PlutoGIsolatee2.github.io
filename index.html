@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 跳转强制修复版</title>
+    <title>🍞 SugarCube 存档编辑器 · 最终可运行版</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -27,70 +27,69 @@
     <!-- JSON lint 库 -->
     <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
-        /* 样式与之前完全相同，为节省篇幅省略，实际使用时保留完整样式 */
+        /* 样式完全保留，为节省篇幅仅保留关键部分，实际使用时应包含完整样式 */
         * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
         body { background: #f4f3f0; padding: 1.5rem; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
         .editor-container { max-width: 1400px; width: 100%; background: #fefcf7; border-radius: 28px; box-shadow: 0 25px 40px -12px rgba(40,30,10,0.3); padding: 2rem 2rem 4rem 2rem; position: relative; }
-        h1 { font-weight: 500; font-size: 2.2rem; letter-spacing: -0.5px; color: #3a2e28; margin-bottom: 1.5rem; border-left: 6px solid #b87c5a; padding-left: 1.3rem; }
+        h1 { font-weight: 500; font-size: 2.2rem; color: #3a2e28; margin-bottom: 1.5rem; border-left: 6px solid #b87c5a; padding-left: 1.3rem; }
         .base64-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.8rem; align-items: center; }
-        .btn { background: #eae3da; border: none; padding: 0.5rem 1.2rem; border-radius: 60px; font-size: 0.9rem; font-weight: 500; color: #3a2e28; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.03); transition: 0.15s; border: 1px solid transparent; }
+        .btn { background: #eae3da; border: none; padding: 0.5rem 1.2rem; border-radius: 60px; font-size: 0.9rem; font-weight: 500; color: #3a2e28; cursor: pointer; transition: 0.15s; border: 1px solid transparent; }
         .btn:hover { background: #d9cdbf; border-color: #c1a58b; }
         .btn-file { background: #dbd0c2; position: relative; display: inline-block; }
-        .btn-file input { position: absolute; left: 0; top: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
-        .base64-textarea { width: 100%; padding: 1rem; font-family: 'Monaco', monospace; font-size: 0.85rem; background: #f6f3ef; border: 1px solid #d9cfc0; border-radius: 24px; margin-bottom: 1.8rem; resize: vertical; min-height: 100px; color: #2b221c; outline: none; transition: 0.1s; box-shadow: inset 2px 2px 6px rgba(0,0,0,0.02); }
-        .base64-textarea:focus { border-color: #b87c5a; background: #fffcf8; }
-        .simple-edit-panel { background: #ece3d9; border-radius: 40px; padding: 1rem 1.5rem; margin: 1rem 0; display: flex; flex-direction: column; gap: 0.8rem; }
-        .simple-panel-buttons { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-        .simple-cm-container { border: 1px solid #c9b6a2; border-radius: 24px; overflow: hidden; background: #fcf9f4; max-height: 200px; }
-        .simple-cm-container .CodeMirror { height: 200px; font-family: 'Monaco', monospace; font-size: 0.85rem; }
-        .help-icon { background: #cbb59e; border-radius: 50%; width: 1.8rem; height: 1.8rem; display: inline-flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; margin-left: 0.2rem; }
-        .full-edit-panel { background: #e3d9ce; border-radius: 40px; padding: 1rem 1.5rem; margin: 1rem 0; display: flex; flex-direction: column; gap: 0.8rem; }
-        .full-panel-buttons { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
-        .cm-editor-container { border: 1px solid #b9a690; border-radius: 24px; overflow: hidden; background: #fcf9f4; max-height: 400px; }
-        .cm-editor-container .CodeMirror { height: 400px; font-family: 'Monaco', monospace; font-size: 0.9rem; }
-        .search-panel { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; background: #ece5db; padding: 0.6rem 1.2rem; border-radius: 60px; margin: 1rem 0 0.8rem; }
-        .search-wrapper { flex: 3 1 250px; display: flex; background: white; border-radius: 40px; border: 1px solid #cfbfad; overflow: hidden; }
-        .search-input { flex: 1; padding: 0.6rem 1.2rem; border: none; outline: none; font-size: 0.9rem; }
-        .jsonpath-toggle { background: #d9caba; border: none; padding: 0 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
-        .jsonpath-toggle.active { background: #b29e88; color: white; }
-        .search-btn { background: #cab89e; border: none; border-radius: 40px; padding: 0.6rem 1.4rem; font-weight: 600; color: #2e241d; }
-        .match-indicator { background: #ddcfbe; padding: 0.2rem 1rem; border-radius: 36px; font-size: 0.9rem; font-weight: 500; min-width: 70px; text-align: center; }
-        .nav-arrow { background: none; border: 1px solid #b29e88; font-size: 1.2rem; padding: 0.2rem 0.8rem; border-radius: 30px; cursor: pointer; }
-        .filter-toolbar { background: #e8dfd2; padding: 0.7rem 1.5rem; border-radius: 60px; margin: 0.5rem 0 1rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem 1.2rem; font-size: 0.95rem; }
-        .filter-label { font-weight: 500; color: #4f3f33; }
-        .filter-btn { background: #dbcdbc; border: none; border-radius: 40px; padding: 0.4rem 1.2rem; font-size: 0.9rem; cursor: pointer; border: 1px solid #c5af99; }
-        .filter-btn.active { background: #b87c5a; color: white; border-color: #9b6243; }
-        .mode-toggle { background: #cbb59e; font-weight: 600; min-width: 130px; }
-        .clear-btn { background: #ccb7a2; }
-        .breadcrumb { background: #e2d7cb; padding: 0.6rem 1.2rem; border-radius: 40px; margin: 0.8rem 0 1rem; font-size: 0.95rem; display: flex; flex-wrap: wrap; gap: 0.3rem 0.6rem; color: #4f3f33; }
-        .crumb-item { cursor: pointer; padding: 0.1rem 0.5rem; border-radius: 30px; background: #f2ece3; }
-        .crumb-item:hover { background: #d4bfab; }
-        .json-tree { background: #fbf9f5; border: 1px solid #ddd2c2; border-radius: 32px; padding: 1.5rem 1.2rem; overflow: auto; max-height: 500px; box-shadow: inset 0 0 0 1px rgba(255,250,240,0.8); scroll-behavior: smooth; }
-        .tree-node { margin-left: 1.4rem; list-style: none; }
-        .tree-node ul { padding-left: 1.4rem; margin: 0.2rem 0; list-style: none; }
-        .node-row { display: flex; align-items: center; gap: 6px; padding: 0.2rem 0.1rem; border-radius: 30px; cursor: default; white-space: nowrap; width: max-content; min-width: 100%; box-sizing: border-box; }
-        .node-row.current-node { background: #efe4d7; outline: 1px solid #c9aa8b; }
-        .toggle { width: 1.2rem; display: inline-block; cursor: pointer; font-size: 0.9rem; color: #8b6f58; user-select: none; flex-shrink: 0; }
-        .key { font-weight: 600; color: #684e3a; cursor: pointer; flex-shrink: 0; }
-        .colon { margin-right: 4px; flex-shrink: 0; }
-        .value-text { font-family: 'Monaco', monospace; color: #2b4a3c; background: #f1ebe4; border-radius: 30px; padding: 0.1rem 0.8rem; display: inline-block; max-width: none; overflow: visible; text-overflow: clip; white-space: nowrap; }
-        .type-badge { background: #dacbbc; border-radius: 30px; padding: 0.1rem 0.6rem; font-size: 0.7rem; font-weight: 600; color: #3a2e28; flex-shrink: 0; }
-        .node-summary { color: #906f54; font-size: 0.85rem; cursor: pointer; flex-shrink: 0; }
-        .null-value { color: #9a887b; font-style: italic; }
-        .float-buttons { position: fixed; bottom: 2rem; right: 2rem; display: flex; flex-direction: column; gap: 0.8rem; pointer-events: none; z-index: 1000; }
-        .float-buttons .btn { pointer-events: auto; width: 3.5rem; height: 3.5rem; border-radius: 60px; font-size: 1.4rem; display: flex; align-items: center; justify-content: center; box-shadow: 0 12px 18px -8px rgba(80,50,20,0.5); border: none; }
-        .btn-undo { background: #8f7b67; color: white; }
-        .btn-redo { background: #b09b88; color: white; }
-        .btn-encode { background: #a77557; color: white; }
-        .btn-decode { background: #d3b59b; color: #2b1e14; }
-        .toast-message { position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%); background: #2e241d; color: #f0e2d4; padding: 0.8rem 2rem; border-radius: 60px; font-size: 0.95rem; box-shadow: 0 8px 20px rgba(0,0,0,0.25); z-index: 2000; opacity: 0; animation: fadeinout 2s ease forwards; pointer-events: none; white-space: nowrap; }
-        @keyframes fadeinout { 0% { opacity: 0; transform: translateX(-50%) translateY(10px); } 15% { opacity: 1; transform: translateX(-50%) translateY(0); } 85% { opacity: 1; transform: translateX(-50%) translateY(0); } 100% { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
-        @media (max-width: 600px) { body { padding: 0.8rem; } .editor-container { padding: 1.2rem 1rem 5rem; } .float-buttons { right: 1rem; bottom: 1rem; gap: 0.5rem; } .float-buttons .btn { width: 3rem; height: 3rem; font-size: 1.2rem; } .toast-message { font-size: 0.8rem; white-space: normal; } .json-tree { padding: 1rem 0.8rem; } .tree-node { margin-left: 1rem; } .tree-node ul { padding-left: 1rem; } }
+        .btn-file input { position: absolute; left:0; top:0; opacity:0; width:100%; height:100%; cursor:pointer; }
+        .base64-textarea { width:100%; padding:1rem; font-family:'Monaco',monospace; font-size:0.85rem; background:#f6f3ef; border:1px solid #d9cfc0; border-radius:24px; margin-bottom:1.8rem; resize:vertical; min-height:100px; }
+        .simple-edit-panel { background:#ece3d9; border-radius:40px; padding:1rem 1.5rem; margin:1rem 0; display:flex; flex-direction:column; gap:0.8rem; }
+        .simple-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+        .simple-cm-container { border:1px solid #c9b6a2; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:200px; }
+        .simple-cm-container .CodeMirror { height:200px; font-family:'Monaco',monospace; font-size:0.85rem; }
+        .help-icon { background:#cbb59e; border-radius:50%; width:1.8rem; height:1.8rem; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; cursor:pointer; margin-left:0.2rem; }
+        .full-edit-panel { background:#e3d9ce; border-radius:40px; padding:1rem 1.5rem; margin:1rem 0; display:flex; flex-direction:column; gap:0.8rem; }
+        .full-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
+        .cm-editor-container { border:1px solid #b9a690; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:400px; }
+        .cm-editor-container .CodeMirror { height:400px; font-family:'Monaco',monospace; font-size:0.9rem; }
+        .search-panel { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; background:#ece5db; padding:0.6rem 1.2rem; border-radius:60px; margin:1rem 0 0.8rem; }
+        .search-wrapper { flex:3 1 250px; display:flex; background:white; border-radius:40px; border:1px solid #cfbfad; overflow:hidden; }
+        .search-input { flex:1; padding:0.6rem 1.2rem; border:none; outline:none; font-size:0.9rem; }
+        .jsonpath-toggle { background:#d9caba; border:none; padding:0 1rem; font-weight:600; cursor:pointer; display:flex; align-items:center; transition:background 0.2s; }
+        .jsonpath-toggle.active { background:#b29e88; color:white; }
+        .search-btn { background:#cab89e; border:none; border-radius:40px; padding:0.6rem 1.4rem; font-weight:600; color:#2e241d; }
+        .match-indicator { background:#ddcfbe; padding:0.2rem 1rem; border-radius:36px; font-size:0.9rem; font-weight:500; min-width:70px; text-align:center; }
+        .nav-arrow { background:none; border:1px solid #b29e88; font-size:1.2rem; padding:0.2rem 0.8rem; border-radius:30px; cursor:pointer; }
+        .filter-toolbar { background:#e8dfd2; padding:0.7rem 1.5rem; border-radius:60px; margin:0.5rem 0 1rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.8rem 1.2rem; font-size:0.95rem; }
+        .filter-label { font-weight:500; color:#4f3f33; }
+        .filter-btn { background:#dbcdbc; border:none; border-radius:40px; padding:0.4rem 1.2rem; font-size:0.9rem; cursor:pointer; border:1px solid #c5af99; }
+        .filter-btn.active { background:#b87c5a; color:white; border-color:#9b6243; }
+        .mode-toggle { background:#cbb59e; font-weight:600; min-width:130px; }
+        .clear-btn { background:#ccb7a2; }
+        .breadcrumb { background:#e2d7cb; padding:0.6rem 1.2rem; border-radius:40px; margin:0.8rem 0 1rem; font-size:0.95rem; display:flex; flex-wrap:wrap; gap:0.3rem 0.6rem; color:#4f3f33; }
+        .crumb-item { cursor:pointer; padding:0.1rem 0.5rem; border-radius:30px; background:#f2ece3; }
+        .crumb-item:hover { background:#d4bfab; }
+        .json-tree { background:#fbf9f5; border:1px solid #ddd2c2; border-radius:32px; padding:1.5rem 1.2rem; overflow:auto; max-height:500px; box-shadow:inset 0 0 0 1px rgba(255,250,240,0.8); scroll-behavior:smooth; }
+        .tree-node { margin-left:1.4rem; list-style:none; }
+        .tree-node ul { padding-left:1.4rem; margin:0.2rem 0; list-style:none; }
+        .node-row { display:flex; align-items:center; gap:6px; padding:0.2rem 0.1rem; border-radius:30px; cursor:default; white-space:nowrap; width:max-content; min-width:100%; box-sizing:border-box; }
+        .node-row.current-node { background:#efe4d7; outline:1px solid #c9aa8b; }
+        .toggle { width:1.2rem; display:inline-block; cursor:pointer; font-size:0.9rem; color:#8b6f58; user-select:none; flex-shrink:0; }
+        .key { font-weight:600; color:#684e3a; cursor:pointer; flex-shrink:0; }
+        .colon { margin-right:4px; flex-shrink:0; }
+        .value-text { font-family:'Monaco',monospace; color:#2b4a3c; background:#f1ebe4; border-radius:30px; padding:0.1rem 0.8rem; display:inline-block; max-width:none; overflow:visible; white-space:nowrap; }
+        .type-badge { background:#dacbbc; border-radius:30px; padding:0.1rem 0.6rem; font-size:0.7rem; font-weight:600; color:#3a2e28; flex-shrink:0; }
+        .node-summary { color:#906f54; font-size:0.85rem; cursor:pointer; flex-shrink:0; }
+        .null-value { color:#9a887b; font-style:italic; }
+        .float-buttons { position:fixed; bottom:2rem; right:2rem; display:flex; flex-direction:column; gap:0.8rem; pointer-events:none; z-index:1000; }
+        .float-buttons .btn { pointer-events:auto; width:3.5rem; height:3.5rem; border-radius:60px; font-size:1.4rem; display:flex; align-items:center; justify-content:center; box-shadow:0 12px 18px -8px rgba(80,50,20,0.5); border:none; }
+        .btn-undo { background:#8f7b67; color:white; }
+        .btn-redo { background:#b09b88; color:white; }
+        .btn-encode { background:#a77557; color:white; }
+        .btn-decode { background:#d3b59b; color:#2b1e14; }
+        .toast-message { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%); background:#2e241d; color:#f0e2d4; padding:0.8rem 2rem; border-radius:60px; font-size:0.95rem; box-shadow:0 8px 20px rgba(0,0,0,0.25); z-index:2000; opacity:0; animation:fadeinout 2s ease forwards; pointer-events:none; white-space:nowrap; }
+        @keyframes fadeinout { 0%{opacity:0; transform:translateX(-50%) translateY(10px);} 15%{opacity:1; transform:translateX(-50%) translateY(0);} 85%{opacity:1; transform:translateX(-50%) translateY(0);} 100%{opacity:0; transform:translateX(-50%) translateY(-10px);} }
+        @media (max-width:600px) { body{padding:0.8rem;} .editor-container{padding:1.2rem 1rem 5rem;} .float-buttons{right:1rem; bottom:1rem; gap:0.5rem;} .float-buttons .btn{width:3rem; height:3rem; font-size:1.2rem;} .toast-message{font-size:0.8rem; white-space:normal;} .json-tree{padding:1rem 0.8rem;} .tree-node{margin-left:1rem;} .tree-node ul{padding-left:1rem;} }
     </style>
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 跳转强制修复版</h1>
+        <h1>🍞 SugarCube 存档 · 最终可运行版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -167,7 +166,6 @@
         </div>
     </div>
 
-    <!-- 主脚本，使用 type="module" -->
     <script type="module">
         import { JSONPath } from 'https://cdn.jsdelivr.net/npm/jsonpath-plus@10.4.0/dist/index-browser-esm.min.js';
 
@@ -287,7 +285,7 @@
             return loadNodeToEditor(path);
         }
 
-        // ----- IndexedDB 管理 (保持与之前相同，略) -----
+        // ----- IndexedDB 管理 -----
         const DB_NAME = 'SugarCubeEditorDB';
         const STORE_NAME = 'editorState';
         let db = null;
@@ -304,15 +302,89 @@
             });
         }
 
-        async function saveStateToDB() { /* 同前，略 */ }
-        async function loadStateFromDB() { /* 同前，略 */ }
-        async function saveEditorStateToDB() { /* 同前，略 */ }
-        async function loadEditorStateFromDB() { /* 同前，略 */ }
-        async function clearEditorStateInDB() { /* 同前，略 */ }
+        async function saveStateToDB() {
+            if (!db) return;
+            const state = {
+                base64: document.getElementById('base64Input').value,
+                rootWrapper: rootWrapper,
+                whiteListPaths: Array.from(whiteListPaths),
+                blackListPaths: Array.from(blackListPaths),
+                filterMode: filterMode,
+                historyStack: historyStack,
+                historyIndex: historyIndex,
+                nodeTypeMap: Array.from(nodeTypeMap.entries()),
+                expandedSet: Array.from(expandedSet),
+                currentPath: currentPath,
+                jsonpathMode: jsonpathMode,
+                lastSearchTerm: lastSearchTerm,
+                matchPaths: matchPaths,
+                matchIndex: matchIndex,
+            };
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put(state, 'current');
+            return tx.complete;
+        }
 
+        async function loadStateFromDB() {
+            if (!db) return null;
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            return new Promise((resolve) => {
+                const request = store.get('current');
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        async function saveEditorStateToDB() {
+            if (!db) return;
+            const editorState = {
+                currentEditPath: currentEditPath,
+                editorContent: cmEditor.getValue(),
+            };
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.put(editorState, 'editor');
+        }
+
+        async function loadEditorStateFromDB() {
+            if (!db) return null;
+            const tx = db.transaction(STORE_NAME, 'readonly');
+            const store = tx.objectStore(STORE_NAME);
+            return new Promise((resolve) => {
+                const request = store.get('editor');
+                request.onsuccess = () => resolve(request.result);
+                request.onerror = () => resolve(null);
+            });
+        }
+
+        async function clearEditorStateInDB() {
+            if (!db) return;
+            const tx = db.transaction(STORE_NAME, 'readwrite');
+            const store = tx.objectStore(STORE_NAME);
+            store.delete('editor');
+        }
+
+        // 初始化DB并加载
         openDB().then(async () => {
             const saved = await loadStateFromDB();
-            if (saved) { /* 加载保存状态，同前，略 */ }
+            if (saved) {
+                document.getElementById('base64Input').value = saved.base64 || '';
+                rootWrapper = saved.rootWrapper || { root: {} };
+                whiteListPaths = new Set(saved.whiteListPaths || []);
+                blackListPaths = new Set(saved.blackListPaths || []);
+                filterMode = saved.filterMode || 'none';
+                historyStack = saved.historyStack || [];
+                historyIndex = saved.historyIndex !== undefined ? saved.historyIndex : -1;
+                nodeTypeMap = new Map(saved.nodeTypeMap || []);
+                expandedSet = new Set(saved.expandedSet || []);
+                currentPath = saved.currentPath || ['root'];
+                jsonpathMode = saved.jsonpathMode || false;
+                lastSearchTerm = saved.lastSearchTerm || '';
+                matchPaths = saved.matchPaths || [];
+                matchIndex = saved.matchIndex !== undefined ? saved.matchIndex : -1;
+            }
             initCodeMirrors();
             const editorSaved = await loadEditorStateFromDB();
             if (editorSaved && editorSaved.currentEditPath) {
@@ -391,8 +463,7 @@
             renderBreadcrumb();
             updateMatchCounter();
             updateFilterUI();
-            // 强制更新高亮（虽然renderTree已加，但确保）
-            updateCurrentNodeHighlight();
+            updateCurrentNodeHighlight();  // 强制高亮
             scrollCurrentNodeIntoView();
             saveStateToDB();
         }
@@ -613,7 +684,6 @@
             let matches = [];
             if (jsonpathMode) {
                 try {
-                    // 使用 pointer 格式，结果如 /root/state/variables/0
                     const pointers = JSONPath({ path: term, json: rootWrapper, resultType: 'pointer', preventEval: true });
                     matches = pointers.map(p => {
                         let parts = p.slice(1).split('/').map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'));
@@ -651,13 +721,18 @@
             updateMatchCounter();
         }
 
-        // 跳转函数 - 强制渲染并确保高亮
         function jumpToMatch(idx) {
             if (!matchPaths.length) return;
             matchIndex = idx;
             const path = matchPaths[idx];
 
-            // 构建新展开集合：所有祖先节点
+            // 检查路径有效性
+            if (!getNodeByPath(path).value) {
+                showToast('路径无效，可能已被删除');
+                return;
+            }
+
+            // 构建展开集合：所有祖先节点
             const newExpanded = new Set();
             for (let i = 1; i <= path.length; i++) {
                 const anc = path.slice(0, i);
@@ -667,14 +742,8 @@
             expandedSet = newExpanded;
             currentPath = path.slice();
 
-            // 直接重新渲染树，然后强制高亮和滚动
-            renderTree();
-            renderBreadcrumb();
-            updateMatchCounter();
-            updateFilterUI();
-            updateCurrentNodeHighlight();   // 强制高亮
-            scrollCurrentNodeIntoView();    // 滚动到视野
-            saveStateToDB();
+            // 全量渲染（会触发高亮和滚动）
+            fullRender();
         }
 
         function updateMatchCounter() {
