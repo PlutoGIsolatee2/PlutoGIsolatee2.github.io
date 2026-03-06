@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 最终版</title>
+    <title>🍞 SugarCube 存档编辑器 · 最终优化版</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -41,7 +41,40 @@
         .simple-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
         .simple-cm-container { border:1px solid #c9b6a2; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:200px; }
         .simple-cm-container .CodeMirror { height:200px; font-family:'Monaco',monospace; font-size:0.85rem; }
-        .help-icon { background:#cbb59e; border-radius:50%; width:1.8rem; height:1.8rem; display:inline-flex; align-items:center; justify-content:center; font-weight:bold; cursor:help; margin-left:0.2rem; }
+        /* 帮助按钮悬浮提示 */
+        .help-icon {
+            background: #cbb59e;
+            border-radius: 50%;
+            width: 1.8rem;
+            height: 1.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 0.2rem;
+            position: relative;
+        }
+        .help-icon:hover::after {
+            content: "当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效";
+            white-space: pre;
+            position: absolute;
+            bottom: 150%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2e241d;
+            color: #f0e2d4;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: normal;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 100;
+            width: 250px;
+            text-align: center;
+            pointer-events: none;
+            line-height: 1.4;
+        }
         .full-edit-panel { background:#e3d9ce; border-radius:40px; padding:1rem 1.5rem; margin:1rem 0; display:flex; flex-direction:column; gap:0.8rem; }
         .full-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
         .cm-editor-container { border:1px solid #b9a690; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:400px; }
@@ -88,7 +121,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 最终版</h1>
+        <h1>🍞 SugarCube 存档 · 最终优化版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -134,7 +167,7 @@
             <div class="simple-panel-buttons">
                 <button class="btn" id="newNodeBtn">➕ 新建节点</button>
                 <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
-                <span class="help-icon" id="newNodeHelp" title="当前节点为数组：输入数组会合并到末尾，其他类型追加到末尾；当前节点为对象：只能输入对象进行合并，输入其他类型会报错">?</span>
+                <span class="help-icon" id="newNodeHelp">?</span>
             </div>
             <div class="simple-cm-container">
                 <textarea id="simpleEditor" placeholder="输入合法 JSON 插入到当前节点下…"></textarea>
@@ -625,7 +658,7 @@
             if (filterMode === 'blacklist') document.getElementById('addBlacklistBtn').classList.add('active');
         }
 
-        // 按钮绑定
+        // 简单面板：新建节点（优化逻辑）
         document.getElementById('newNodeBtn').onclick = () => {
             const raw = simpleEditor.getValue().trim();
             if (!raw) return showToast('请输入 JSON');
@@ -636,27 +669,22 @@
             const target = nodeInfo.value;
             if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点');
 
-            // 修改逻辑：当当前节点为对象时，只能插入纯对象进行合并
-            if (!Array.isArray(target)) { // 当前节点是对象
-                if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                    // 是纯对象，执行合并
-                    modifyData(() => {
-                        Object.assign(target, parsed);
-                        expandedSet.add(JSON.stringify(currentPath));
-                    });
+            modifyData(() => {
+                if (Array.isArray(target)) {
+                    // 数组：无论输入什么，直接追加
+                    target.push(parsed);
                 } else {
-                    return showToast('当前节点为对象，只能插入对象（JSON 对象）进行合并');
-                }
-            } else { // 当前节点是数组
-                modifyData(() => {
-                    if (Array.isArray(parsed)) {
-                        target.push(...parsed);
+                    // 对象：只接受对象类型进行合并
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        Object.assign(target, parsed);
                     } else {
-                        target.push(parsed);
+                        // 非对象输入无效，提示但不修改
+                        showToast('向对象添加值需要提供键名，请使用对象格式');
+                        return; // 退出，不进行修改
                     }
-                    expandedSet.add(JSON.stringify(currentPath));
-                });
-            }
+                }
+                expandedSet.add(JSON.stringify(currentPath));
+            });
             simpleEditor.setValue('');
         };
 
@@ -672,7 +700,8 @@
             });
         };
 
-        // 帮助按钮已使用 title 属性，无需 onclick
+        // 帮助按钮改用CSS悬浮提示，无需绑定事件
+        // document.getElementById('newNodeHelp').onclick = ... 已移除
 
         document.getElementById('editCurrentNodeBtn').onclick = () => tryEditNode(currentPath);
         document.getElementById('pushNodeBtn').onclick = pushEditorToTree;
