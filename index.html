@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 最终可运行版</title>
+    <title>🍞 SugarCube 存档编辑器 · 最终修复版</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -27,7 +27,6 @@
     <!-- JSON lint 库 -->
     <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
-        /* 样式完全保留，为节省篇幅仅保留关键部分，实际使用时应包含完整样式 */
         * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
         body { background: #f4f3f0; padding: 1.5rem; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
         .editor-container { max-width: 1400px; width: 100%; background: #fefcf7; border-radius: 28px; box-shadow: 0 25px 40px -12px rgba(40,30,10,0.3); padding: 2rem 2rem 4rem 2rem; position: relative; }
@@ -89,7 +88,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 最终可运行版</h1>
+        <h1>🍞 SugarCube 存档 · 最终修复版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -106,7 +105,7 @@
         <!-- 搜索面板 -->
         <div class="search-panel">
             <div class="search-wrapper">
-                <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath ($.root.xxx)'>
+                <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath (如 $.root.state)'>
                 <button class="jsonpath-toggle" id="jsonpathToggleBtn">$</button>
             </div>
             <button class="search-btn" id="searchBtn">搜索</button>
@@ -463,7 +462,7 @@
             renderBreadcrumb();
             updateMatchCounter();
             updateFilterUI();
-            updateCurrentNodeHighlight();  // 强制高亮
+            updateCurrentNodeHighlight();
             scrollCurrentNodeIntoView();
             saveStateToDB();
         }
@@ -590,6 +589,7 @@
             return li;
         }
 
+        // 面包屑 - 根节点显示为 $
         function renderBreadcrumb() {
             const bread = document.getElementById('breadcrumb');
             bread.innerHTML = '';
@@ -597,9 +597,10 @@
             for (let i = 0; i < currentPath.length; i++) {
                 acc.push(currentPath[i]);
                 const part = currentPath[i];
+                const display = (i === 0 && part === 'root') ? '$' : part;
                 const crumb = document.createElement('span');
                 crumb.className = 'crumb-item';
-                crumb.textContent = part;
+                crumb.textContent = display;
                 crumb.dataset.path = JSON.stringify(acc.slice());
                 crumb.onclick = (e) => {
                     const p = JSON.parse(e.target.dataset.path);
@@ -678,16 +679,18 @@
             if (lastSearchTerm) search(lastSearchTerm);
         };
 
-        // ----- 搜索核心 (关键修复) -----
+        // ----- 搜索核心 (关键修复：去掉多余的root前缀) -----
         function search(term) {
             if (!term.trim()) { matchPaths = []; matchIndex = -1; fullRender(); return; }
             let matches = [];
             if (jsonpathMode) {
                 try {
                     const pointers = JSONPath({ path: term, json: rootWrapper, resultType: 'pointer', preventEval: true });
+                    // pointers 示例: ['/root/state', '/root/state/variables']
                     matches = pointers.map(p => {
                         let parts = p.slice(1).split('/').map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'));
-                        return ['root', ...parts];
+                        // 直接返回 parts，因为它已经以 'root' 开头
+                        return parts;
                     });
                 } catch (e) { showToast('JSONPath 错误: ' + e.message); }
             } else {
@@ -742,7 +745,6 @@
             expandedSet = newExpanded;
             currentPath = path.slice();
 
-            // 全量渲染（会触发高亮和滚动）
             fullRender();
         }
 
