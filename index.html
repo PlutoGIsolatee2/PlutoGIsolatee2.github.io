@@ -3,9 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 性能优化版</title>
+    <title>🍞 SugarCube 存档编辑器 · CodeMirror 集成版</title>
+    <!-- lz-string & jsonpath-plus -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsonpath-plus@6.0.1/dist/index-browser-esm.min.js"></script>
+    <!-- CodeMirror 5 核心和依赖 (用于 JSON 编辑) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/lint.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/closebrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/edit/matchbrackets.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/lint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/json-lint.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/search.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/searchcursor.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
+    <!-- 用于 JSON 校验 (需要全局 jsonlint) -->
+    <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -21,7 +38,7 @@
             align-items: center;
         }
         .editor-container {
-            max-width: 1300px;
+            max-width: 1400px;
             width: 100%;
             background: #fefcf7;
             border-radius: 28px;
@@ -94,44 +111,33 @@
             background: #fffcf8;
         }
 
-        /* 节点编辑面板 */
+        /* 节点编辑面板 (使用 CodeMirror) */
         .node-edit-panel {
             background: #ece3d9;
             border-radius: 40px;
             padding: 1rem 1.5rem;
             margin: 1rem 0;
             display: flex;
-            flex-wrap: wrap;
-            align-items: center;
+            flex-direction: column;
             gap: 1rem;
         }
         .panel-buttons {
             display: flex;
             gap: 0.5rem;
             align-items: center;
+            flex-wrap: wrap;
         }
-        .node-edit-textarea {
-            flex: 2 1 300px;
-            padding: 0.8rem 1.2rem;
-            font-family: 'Monaco', monospace;
-            font-size: 0.8rem;
-            background: #fcf9f4;
+        .cm-editor-container {
             border: 1px solid #c9b6a2;
-            border-radius: 36px;
-            resize: vertical;
-            min-height: 70px;
+            border-radius: 24px;
+            overflow: hidden;
+            background: #fcf9f4;
         }
-        .help-icon {
-            background: #cbb59e;
-            border-radius: 50%;
-            width: 1.8rem;
-            height: 1.8rem;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            cursor: pointer;
-            margin-left: 0.2rem;
+        .CodeMirror {
+            height: auto;
+            min-height: 200px;
+            font-family: 'Monaco', monospace;
+            font-size: 0.9rem;
         }
 
         /* 搜索面板 */
@@ -168,7 +174,11 @@
             cursor: pointer;
             display: flex;
             align-items: center;
-            gap: 0.3rem;
+            transition: background 0.2s;
+        }
+        .jsonpath-toggle.active {
+            background: #b29e88;
+            color: white;
         }
         .search-btn {
             background: #cab89e;
@@ -242,7 +252,7 @@
         }
         .crumb-item:hover { background: #d4bfab; }
 
-        /* json树 */
+        /* json树 - 优化高亮，确保覆盖整行 */
         .json-tree {
             background: #fbf9f5;
             border: 1px solid #ddd2c2;
@@ -266,15 +276,16 @@
             border-radius: 30px;
             cursor: default;
             white-space: nowrap;
-            width: 100%;
-            box-sizing: border-box;
+            width: 100%;          /* 确保占满父容器宽度 */
+            min-width: max-content; /* 防止收缩 */
         }
         .node-row.current-node {
             background: #efe4d7;
             outline: 1px solid #c9aa8b;
             /* 确保背景从左边距开始 */
-            margin-left: -0.1rem; /* 微调对齐 */
-            padding-left: calc(0.1rem + 0.1rem); /* 补偿 */
+            margin-left: -0.1rem;
+            padding-left: calc(0.1rem + 0.1rem);
+            width: calc(100% + 0.2rem); /* 补偿负边距 */
         }
         .toggle {
             width: 1.2rem;
@@ -283,38 +294,36 @@
             font-size: 0.9rem;
             color: #8b6f58;
             user-select: none;
+            flex-shrink: 0;
         }
         .key {
             font-weight: 600;
             color: #684e3a;
             cursor: pointer;
+            flex-shrink: 0;
         }
-        .colon { margin-right: 4px; }
-        .value-block {
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-        .value-edit {
-            background: transparent;
-            border: 1px solid #d0bcab;
-            border-radius: 30px;
-            padding: 0.2rem 0.8rem;
-            font-size: 0.85rem;
+        .colon { margin-right: 4px; flex-shrink: 0; }
+        .value-text {
             font-family: 'Monaco', monospace;
-            min-width: 150px;
+            color: #2b4a3c;
+            background: #f1ebe4;
+            border-radius: 30px;
+            padding: 0.1rem 0.8rem;
+            display: inline-block;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .value-edit:focus { background: white; border-color: #a16b48; outline: none; }
         .type-badge {
             background: #dacbbc;
             border-radius: 30px;
             padding: 0.1rem 0.6rem;
             font-size: 0.7rem;
             font-weight: 600;
-            cursor: pointer;
-            user-select: none;
+            color: #3a2e28;
+            flex-shrink: 0;
         }
-        .node-summary { color: #906f54; font-size: 0.85rem; cursor: pointer; }
+        .node-summary { color: #906f54; font-size: 0.85rem; cursor: pointer; flex-shrink: 0; }
         .null-value { color: #9a887b; font-style: italic; }
 
         /* 悬浮按钮组 */
@@ -375,12 +384,13 @@
             .float-buttons { right: 1rem; bottom: 1rem; gap: 0.5rem; }
             .float-buttons .btn { width: 3rem; height: 3rem; font-size: 1.2rem; }
             .toast-message { font-size: 0.8rem; white-space: normal; }
+            .node-row { min-width: auto; } /* 移动端允许换行？但保留横向滚动 */
         }
     </style>
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 性能优化版</h1>
+        <h1>🍞 SugarCube 存档 · CodeMirror 集成</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -394,21 +404,23 @@
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
 
-        <!-- 节点编辑面板 -->
+        <!-- 节点编辑面板 (CodeMirror) -->
         <div class="node-edit-panel">
             <div class="panel-buttons">
-                <button class="btn" id="newNodeBtn">➕ 新建节点</button>
+                <button class="btn" id="editCurrentNodeBtn">✎ 编辑当前节点</button>
+                <button class="btn" id="pushNodeBtn">⏎ 推送修改</button>
                 <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
-                <span class="help-icon" id="newNodeHelp">?</span>
             </div>
-            <textarea id="newNodeTextarea" class="node-edit-textarea" placeholder='输入合法 JSON 插入到当前节点下…'></textarea>
+            <div class="cm-editor-container">
+                <textarea id="nodeEditor" placeholder="当前节点的 JSON 表示..."></textarea>
+            </div>
         </div>
 
         <!-- 搜索面板 -->
         <div class="search-panel">
             <div class="search-wrapper">
                 <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath ($.xxx)'>
-                <button class="jsonpath-toggle" id="jsonpathToggleBtn">🔍 $</button>
+                <button class="jsonpath-toggle" id="jsonpathToggleBtn">$</button>
             </div>
             <button class="search-btn" id="searchBtn">搜索</button>
             <span class="match-indicator" id="matchCounter">0/0</span>
@@ -460,7 +472,7 @@
             let currentPath = ['root'];
             let expandedSet = new Set();
 
-            // 历史记录
+            // 历史记录 (用于撤销树修改)
             let historyStack = [];
             let historyIndex = -1;
             const MAX_HISTORY = 50;
@@ -476,17 +488,104 @@
             let blackListPaths = new Set();
             let filterMode = 'none';
 
-            // 节点类型映射
+            // 节点类型映射 (仅用于显示)
             let nodeTypeMap = new Map();
 
-            // ----- IndexedDB 初始化 -----
+            // ----- CodeMirror 编辑器 -----
+            let cmEditor;
+            let currentEditPath = null;          // 当前正在编辑的节点路径
+            let editorDirty = false;              // 编辑器内容是否未推送
+
+            // 初始化 CodeMirror
+            function initCodeMirror() {
+                const textarea = document.getElementById('nodeEditor');
+                cmEditor = CodeMirror.fromTextArea(textarea, {
+                    mode: 'application/json',
+                    theme: 'default',
+                    lineNumbers: true,
+                    autoCloseBrackets: true,
+                    matchBrackets: true,
+                    styleActiveLine: true,
+                    gutters: ['CodeMirror-lint-markers'],
+                    lint: true,                     // 需要 jsonlint
+                    extraKeys: {
+                        'Ctrl-Space': 'autocomplete',
+                        'Cmd-/': 'toggleComment',
+                        'Ctrl-F': 'findPersistent',
+                        'Ctrl-G': 'findNext',
+                        'Shift-Ctrl-G': 'findPrev'
+                    }
+                });
+                cmEditor.on('change', () => {
+                    editorDirty = true;
+                });
+            }
+
+            // 将当前节点加载到编辑器
+            function loadNodeToEditor(path) {
+                const nodeInfo = getNodeByPath(path);
+                if (!nodeInfo || nodeInfo.value === undefined) {
+                    showToast('节点无效');
+                    return;
+                }
+                const jsonStr = JSON.stringify(nodeInfo.value, null, 2);
+                cmEditor.setValue(jsonStr);
+                currentEditPath = path.slice();
+                editorDirty = false;
+                // 保存到 IndexedDB (当前编辑状态)
+                saveEditorStateToDB();
+            }
+
+            // 推送编辑器内容到树
+            function pushEditorToTree() {
+                if (!currentEditPath) {
+                    showToast('没有正在编辑的节点');
+                    return;
+                }
+                const newValueStr = cmEditor.getValue();
+                let parsed;
+                try {
+                    parsed = JSON.parse(newValueStr);
+                } catch (e) {
+                    showToast('JSON 格式错误: ' + e.message);
+                    return;
+                }
+                // 执行修改
+                modifyData(() => {
+                    setValueByPath(currentEditPath, parsed);
+                    // 更新类型映射（清除该路径下的所有子类型，因为结构可能变化）
+                    // 简单起见，不清除，但可能导致显示类型错误，这里选择清除所有以当前路径开头的映射
+                    const prefix = JSON.stringify(currentEditPath);
+                    for (let key of nodeTypeMap.keys()) {
+                        if (key.startsWith(prefix)) nodeTypeMap.delete(key);
+                    }
+                });
+                editorDirty = false;
+                // 清除当前编辑路径 (表示已推送)
+                currentEditPath = null;
+                // 从 IndexedDB 中删除编辑状态
+                clearEditorStateInDB();
+            }
+
+            // 尝试切换到新节点编辑，如有未推送更改则确认
+            function tryEditNode(path) {
+                if (editorDirty) {
+                    if (!confirm('当前编辑器中有未推送的更改，确定要切换节点吗？未推送的更改将丢失。')) {
+                        return false;
+                    }
+                }
+                loadNodeToEditor(path);
+                return true;
+            }
+
+            // ----- IndexedDB 管理 -----
             const DB_NAME = 'SugarCubeEditorDB';
             const STORE_NAME = 'editorState';
             let db = null;
 
             function openDB() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open(DB_NAME, 1);
+                    const request = indexedDB.open(DB_NAME, 2); // 升级版本以兼容新结构
                     request.onerror = () => reject(request.error);
                     request.onsuccess = () => {
                         db = request.result;
@@ -536,6 +635,36 @@
                 });
             }
 
+            // 保存编辑器状态（当前编辑节点和内容）
+            async function saveEditorStateToDB() {
+                if (!db) return;
+                const editorState = {
+                    currentEditPath: currentEditPath,
+                    editorContent: cmEditor.getValue(),
+                };
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put(editorState, 'editor');
+            }
+
+            async function loadEditorStateFromDB() {
+                if (!db) return null;
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                return new Promise((resolve) => {
+                    const request = store.get('editor');
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => resolve(null);
+                });
+            }
+
+            async function clearEditorStateInDB() {
+                if (!db) return;
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.delete('editor');
+            }
+
             // 初始化DB并加载
             openDB().then(async () => {
                 const saved = await loadStateFromDB();
@@ -554,53 +683,19 @@
                     lastSearchTerm = saved.lastSearchTerm || '';
                     matchPaths = saved.matchPaths || [];
                     matchIndex = saved.matchIndex !== undefined ? saved.matchIndex : -1;
-                    // 初始渲染
-                    fullRender();
-                    updateJsonpathToggle();
-                } else {
-                    pushHistory();
-                    fullRender();
                 }
+                // 初始化 CodeMirror
+                initCodeMirror();
+                // 尝试加载上次编辑状态
+                const editorSaved = await loadEditorStateFromDB();
+                if (editorSaved && editorSaved.currentEditPath) {
+                    currentEditPath = editorSaved.currentEditPath;
+                    cmEditor.setValue(editorSaved.editorContent);
+                    editorDirty = true; // 视为有未推送
+                }
+                fullRender();
+                updateJsonpathToggle();
             }).catch(console.warn);
-
-            // ----- 历史管理 -----
-            function pushHistory() {
-                const snapshot = cloneDeep(rootWrapper);
-                if (historyIndex < historyStack.length - 1) {
-                    historyStack = historyStack.slice(0, historyIndex + 1);
-                }
-                historyStack.push(snapshot);
-                if (historyStack.length > MAX_HISTORY) historyStack.shift();
-                historyIndex = historyStack.length - 1;
-                saveStateToDB();
-            }
-
-            function undo() {
-                if (historyIndex > 0) {
-                    historyIndex--;
-                    rootWrapper = cloneDeep(historyStack[historyIndex]);
-                    fullRender();
-                    saveStateToDB();
-                } else {
-                    showToast('没有上一步');
-                }
-            }
-
-            function redo() {
-                if (historyIndex < historyStack.length - 1) {
-                    historyIndex++;
-                    rootWrapper = cloneDeep(historyStack[historyIndex]);
-                    fullRender();
-                    saveStateToDB();
-                } else {
-                    showToast('没有下一步');
-                }
-            }
-
-            // 深拷贝
-            function cloneDeep(obj) {
-                return JSON.parse(JSON.stringify(obj));
-            }
 
             // ----- 辅助函数 -----
             function getNodeByPath(path) {
@@ -630,24 +725,11 @@
                 return a.length === b.length && a.every((v,i)=> v===b[i]);
             }
 
-            function parseAsType(str, type) {
-                if (type === 'string') return str;
-                if (type === 'number') {
-                    const num = Number(str);
-                    return isNaN(num) ? str : num;
-                }
-                if (type === 'boolean') {
-                    if (str.toLowerCase() === 'true') return true;
-                    if (str.toLowerCase() === 'false') return false;
-                    return str;
-                }
-                if (type === 'null') return null;
-                if (type === 'object' || type === 'array') {
-                    try { return JSON.parse(str); } catch { return str; }
-                }
-                return str;
+            function cloneDeep(obj) {
+                return JSON.parse(JSON.stringify(obj));
             }
 
+            // 获取节点类型 (仅用于显示)
             function getNodeType(path, value) {
                 const pathStr = JSON.stringify(path);
                 if (nodeTypeMap.has(pathStr)) return nodeTypeMap.get(pathStr);
@@ -655,26 +737,6 @@
                 if (Array.isArray(value)) return 'array';
                 if (typeof value === 'object') return 'object';
                 return typeof value;
-            }
-
-            function setNodeType(path, type) {
-                nodeTypeMap.set(JSON.stringify(path), type);
-            }
-
-            // ----- 高亮更新（仅切换 current-node 类，不重建树）-----
-            function updateCurrentNodeHighlight() {
-                const rows = document.querySelectorAll('.node-row');
-                rows.forEach(row => row.classList.remove('current-node'));
-                const targetRow = Array.from(rows).find(row => {
-                    const pathAttr = row.getAttribute('data-path');
-                    if (!pathAttr) return false;
-                    try { return arrayEquals(JSON.parse(pathAttr), currentPath); }
-                    catch { return false; }
-                });
-                if (targetRow) {
-                    targetRow.classList.add('current-node');
-                    scrollCurrentNodeIntoView();
-                }
             }
 
             // 滚动当前节点到视野中央
@@ -717,7 +779,7 @@
                 setTimeout(() => toast.remove(), duration);
             }
 
-            // ----- 全量渲染（用于初始加载或大规模变动）-----
+            // ----- 全量渲染与轻量更新 -----
             function fullRender() {
                 renderTree();
                 renderBreadcrumb();
@@ -727,7 +789,6 @@
                 saveStateToDB();
             }
 
-            // 仅刷新轻量级UI（面包屑、计数器、筛选按钮，不重绘树）
             function refreshLightUI() {
                 renderBreadcrumb();
                 updateMatchCounter();
@@ -735,16 +796,71 @@
                 saveStateToDB();
             }
 
-            // 设置当前路径并仅更新高亮
             function setCurrentPath(path) {
                 if (!path) return;
                 currentPath = path.slice();
                 updateCurrentNodeHighlight();
-                renderBreadcrumb(); // 面包屑需要更新
+                renderBreadcrumb();
                 saveStateToDB();
             }
 
-            // ----- 树渲染（全量构建）-----
+            function updateCurrentNodeHighlight() {
+                const rows = document.querySelectorAll('.node-row');
+                rows.forEach(row => row.classList.remove('current-node'));
+                const targetRow = Array.from(rows).find(row => {
+                    const pathAttr = row.getAttribute('data-path');
+                    if (!pathAttr) return false;
+                    try { return arrayEquals(JSON.parse(pathAttr), currentPath); }
+                    catch { return false; }
+                });
+                if (targetRow) {
+                    targetRow.classList.add('current-node');
+                    scrollCurrentNodeIntoView();
+                }
+            }
+
+            // 历史管理
+            function pushHistory() {
+                const snapshot = cloneDeep(rootWrapper);
+                if (historyIndex < historyStack.length - 1) {
+                    historyStack = historyStack.slice(0, historyIndex + 1);
+                }
+                historyStack.push(snapshot);
+                if (historyStack.length > MAX_HISTORY) historyStack.shift();
+                historyIndex = historyStack.length - 1;
+                saveStateToDB();
+            }
+
+            function undo() {
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    rootWrapper = cloneDeep(historyStack[historyIndex]);
+                    fullRender();
+                    saveStateToDB();
+                } else {
+                    showToast('没有上一步');
+                }
+            }
+
+            function redo() {
+                if (historyIndex < historyStack.length - 1) {
+                    historyIndex++;
+                    rootWrapper = cloneDeep(historyStack[historyIndex]);
+                    fullRender();
+                    saveStateToDB();
+                } else {
+                    showToast('没有下一步');
+                }
+            }
+
+            // 修改数据并全量渲染
+            function modifyData(callback) {
+                callback();
+                pushHistory();
+                fullRender();
+            }
+
+            // ----- 树渲染（仅显示，无输入框）-----
             function renderTree() {
                 const container = document.getElementById('jsonTree');
                 container.innerHTML = '';
@@ -770,9 +886,7 @@
                         const strPath = JSON.stringify(path);
                         if (expandedSet.has(strPath)) expandedSet.delete(strPath);
                         else expandedSet.add(strPath);
-                        // 展开折叠时局部更新：重新渲染该节点下的子树，但为简单，全量渲染
-                        // 可以优化为只更新该节点，但考虑到性能影响不大，暂时保留全量
-                        fullRender();
+                        fullRender(); // 展开/折叠需要重绘
                     };
                 } else toggleSpan.textContent = '  ';
                 row.appendChild(toggleSpan);
@@ -785,6 +899,13 @@
                 row.appendChild(document.createElement('span')).className = 'colon';
                 row.lastChild.textContent = ':';
 
+                // 显示类型徽章
+                const currentType = getNodeType(path, value);
+                const typeBadge = document.createElement('span');
+                typeBadge.className = 'type-badge';
+                typeBadge.textContent = currentType;
+                row.appendChild(typeBadge);
+
                 if (isCollapsible) {
                     const summary = Array.isArray(value) ? `Array(${value.length})` : 'Object';
                     const valSpan = document.createElement('span');
@@ -793,79 +914,12 @@
                     valSpan.onclick = (e) => { e.stopPropagation(); setCurrentPath(path); };
                     row.appendChild(valSpan);
                 } else {
-                    const valueBlock = document.createElement('span');
-                    valueBlock.className = 'value-block';
-
-                    const currentType = getNodeType(path, value);
-                    const typeBadge = document.createElement('span');
-                    typeBadge.className = 'type-badge';
-                    typeBadge.textContent = currentType;
-                    typeBadge.onclick = (e) => {
-                        e.stopPropagation();
-                        const types = ['string', 'number', 'boolean', 'null', 'object', 'array'];
-                        let idx = types.indexOf(currentType);
-                        idx = (idx + 1) % types.length;
-                        const newType = types[idx];
-                        const oldValue = value;
-                        let newValue;
-                        try {
-                            if (newType === 'object' || newType === 'array') {
-                                newValue = JSON.parse(String(oldValue));
-                            } else {
-                                newValue = parseAsType(String(oldValue), newType);
-                            }
-                        } catch {
-                            newValue = oldValue;
-                            showToast(`无法转换为${newType}，已保留原值`);
-                        }
-                        // 类型切换可能导致结构变化，简单全量渲染
-                        modifyData(() => {
-                            setNodeType(path, newType);
-                            setValueByPath(path, newValue);
-                        });
-                    };
-                    valueBlock.appendChild(typeBadge);
-
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.className = 'value-edit';
-                    input.value = (value === null) ? 'null' : String(value);
-                    input.dataset.path = JSON.stringify(path);
-                    input.addEventListener('click', e => e.stopPropagation());
-                    input.addEventListener('change', e => {
-                        const raw = e.target.value;
-                        const targetPath = JSON.parse(e.target.dataset.path);
-                        const nodeInfo = getNodeByPath(targetPath);
-                        const oldValue = nodeInfo.value;
-                        const currentType = getNodeType(targetPath, oldValue);
-                        let parsed;
-                        try {
-                            parsed = parseAsType(raw, currentType);
-                        } catch {
-                            parsed = raw;
-                        }
-                        const actualType = parsed === null ? 'null' : typeof parsed;
-                        if (actualType !== currentType && !(currentType === 'object' && actualType === 'array')) {
-                            showToast(`输入值类型(${actualType})与当前类型(${currentType})不符，但已保存`);
-                        }
-                        // 如果值改变且类型不变（简单类型），我们可以只更新输入框的值，避免全量重绘
-                        if (actualType === currentType && !Array.isArray(parsed) && typeof parsed !== 'object') {
-                            // 直接更新数据并修改DOM
-                            modifyDataWithoutRender(() => {
-                                setValueByPath(targetPath, parsed);
-                            });
-                            // 更新输入框显示（其实输入框已经是最新，但以防解析后格式变化）
-                            e.target.value = String(parsed);
-                            // 类型徽章可能不变，无需更新
-                        } else {
-                            // 类型变化或变成对象，全量渲染
-                            modifyData(() => {
-                                setValueByPath(targetPath, parsed);
-                            });
-                        }
-                    });
-                    valueBlock.appendChild(input);
-                    row.appendChild(valueBlock);
+                    // 纯文本显示
+                    const textSpan = document.createElement('span');
+                    textSpan.className = 'value-text';
+                    textSpan.textContent = (value === null) ? 'null' : String(value);
+                    textSpan.onclick = (e) => { e.stopPropagation(); setCurrentPath(path); };
+                    row.appendChild(textSpan);
                 }
 
                 li.appendChild(row);
@@ -884,22 +938,6 @@
                     li.appendChild(children);
                 }
                 return li;
-            }
-
-            // 修改数据但不全量渲染（用于简单值更新）
-            function modifyDataWithoutRender(callback) {
-                callback();
-                pushHistory();  // 记录历史
-                // 不调用 fullRender，仅更新轻量UI
-                refreshLightUI();
-                // 但当前节点高亮可能不变，无需额外操作
-            }
-
-            // 修改数据并全量渲染（用于结构变化）
-            function modifyData(callback) {
-                callback();
-                pushHistory();
-                fullRender();
             }
 
             // 面包屑
@@ -921,8 +959,7 @@
                         if (nodeInfo.value && typeof nodeInfo.value === 'object') {
                             expandedSet.add(JSON.stringify(p));
                         }
-                        // 如果点击的面包屑是容器，可能需要展开，但我们只切换高亮，展开状态通过 expandedSet 控制，需要重新渲染？但 setCurrentPath 不会重绘树，所以需要手动更新展开状态？这里暂时不自动展开，让用户手动点击展开。如果希望自动展开，可以调用 fullRender，但为了性能，我们只更新高亮，展开状态保持不变。
-                        // 但为了看到子节点，用户可能需要点击展开按钮。合理。
+                        // 不自动渲染展开，仅切换高亮
                     };
                     bread.appendChild(crumb);
                     if (i < currentPath.length - 1) bread.appendChild(document.createTextNode(' / '));
@@ -938,16 +975,14 @@
                 if (filterMode === 'blacklist') document.getElementById('addBlacklistBtn').classList.add('active');
             }
 
-            // 新增节点帮助
-            document.getElementById('newNodeHelp').onclick = () => {
-                showToast('当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；为对象时：输入对象会合并，其他类型以newKey命名添加');
-            };
-
             // 删除当前节点
             document.getElementById('deleteNodeBtn').onclick = () => {
                 if (arrayEquals(currentPath, ['root'])) {
                     showToast('不能删除根节点');
                     return;
+                }
+                if (editorDirty && currentEditPath && arrayEquals(currentEditPath, currentPath)) {
+                    if (!confirm('当前节点正在编辑中且未推送，确定删除吗？')) return;
                 }
                 modifyData(() => {
                     const { parent, key } = getNodeByPath(currentPath);
@@ -961,9 +996,25 @@
                 });
             };
 
+            // 编辑当前节点按钮
+            document.getElementById('editCurrentNodeBtn').onclick = () => {
+                tryEditNode(currentPath);
+            };
+
+            // 推送修改按钮
+            document.getElementById('pushNodeBtn').onclick = () => {
+                pushEditorToTree();
+            };
+
             // JSONPath 切换
             function updateJsonpathToggle() {
-                document.getElementById('jsonpathToggleBtn').innerHTML = jsonpathMode ? '🔍 $ (路径)' : '🔍 a (文本)';
+                const btn = document.getElementById('jsonpathToggleBtn');
+                btn.textContent = '$';
+                if (jsonpathMode) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
             }
             document.getElementById('jsonpathToggleBtn').onclick = () => {
                 jsonpathMode = !jsonpathMode;
@@ -1027,9 +1078,8 @@
                     if (getNodeByPath(anc).value && typeof getNodeByPath(anc).value === 'object')
                         expandedSet.add(JSON.stringify(anc));
                 }
-                // 跳转时由于需要展开，必须全量渲染
-                setCurrentPath(path);  // 先更新高亮
-                fullRender();           // 重新渲染以展开节点
+                setCurrentPath(path);
+                fullRender(); // 需要展开节点
             }
 
             function updateMatchCounter() {
@@ -1074,34 +1124,6 @@
                 showToast('名单已清空');
                 if (lastSearchTerm) search(lastSearchTerm);
                 else fullRender();
-            }
-
-            // 新建节点
-            function createNewNodeFromText() {
-                const raw = document.getElementById('newNodeTextarea').value.trim();
-                if (!raw) return showToast('请输入 JSON');
-                let parsed;
-                try { parsed = JSON.parse(raw); } catch { return showToast('无效 JSON'); }
-                const nodeInfo = getNodeByPath(currentPath);
-                if (!nodeInfo || nodeInfo.value === undefined) return showToast('当前节点无效');
-                const target = nodeInfo.value;
-                if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点');
-
-                modifyData(() => {
-                    if (Array.isArray(target)) {
-                        if (Array.isArray(parsed)) target.push(...parsed);
-                        else target.push(parsed);
-                    } else {
-                        if (parsed && typeof parsed === 'object') Object.assign(target, parsed);
-                        else {
-                            let baseKey = 'newKey';
-                            let c=1; while (baseKey in target) baseKey = `newKey${c++}`;
-                            target[baseKey] = parsed;
-                        }
-                    }
-                    expandedSet.add(JSON.stringify(currentPath));
-                });
-                document.getElementById('newNodeTextarea').value = '';
             }
 
             // 解码
@@ -1152,7 +1174,7 @@
                 reader.readAsText(file);
             });
 
-            // 按钮绑定
+            // 复制/下载
             document.getElementById('copyBase64Btn').onclick = () => {
                 navigator.clipboard.writeText(document.getElementById('base64Input').value).then(() => showToast('已复制')).catch(() => showToast('复制失败'));
             };
@@ -1166,11 +1188,12 @@
                 a.click();
                 URL.revokeObjectURL(a.href);
             };
+
+            // 撤销/恢复
             document.getElementById('undoBtn').onclick = undo;
             document.getElementById('redoBtn').onclick = redo;
             document.getElementById('decodeFloatBtn').onclick = decodeFromBase64;
             document.getElementById('encodeFloatBtn').onclick = encodeAndCopy;
-            document.getElementById('newNodeBtn').onclick = createNewNodeFromText;
             document.getElementById('searchBtn').onclick = () => {
                 lastSearchTerm = document.getElementById('searchInput').value;
                 search(lastSearchTerm);
@@ -1190,8 +1213,8 @@
             document.getElementById('toggleFilterModeBtn').onclick = toggleFilterMode;
             document.getElementById('clearFilterBtn').onclick = clearCurrentFilter;
 
-            // 初始化渲染
-            // fullRender 已经在加载DB后调用
+            // 初始渲染
+            // 已经在DB加载后调用 fullRender
         })();
     </script>
 </body>
