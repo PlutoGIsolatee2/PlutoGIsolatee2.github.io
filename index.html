@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · CodeMirror 集成版</title>
+    <title>🍞 SugarCube 存档编辑器 · 双面板最终版</title>
     <!-- lz-string & jsonpath-plus -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jsonpath-plus@6.0.1/dist/index-browser-esm.min.js"></script>
-    <!-- CodeMirror 5 核心和依赖 (用于 JSON 编辑) -->
+    <!-- CodeMirror 5 核心和依赖 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/lint/lint.min.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.css">
@@ -21,7 +21,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/search/searchcursor.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/dialog/dialog.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/addon/selection/active-line.min.js"></script>
-    <!-- 用于 JSON 校验 (需要全局 jsonlint) -->
+    <!-- JSON lint -->
     <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
         * {
@@ -111,31 +111,73 @@
             background: #fffcf8;
         }
 
-        /* 节点编辑面板 (使用 CodeMirror) */
-        .node-edit-panel {
+        /* 简单编辑面板 (新建/删除节点 + 文本区) */
+        .simple-edit-panel {
             background: #ece3d9;
             border-radius: 40px;
             padding: 1rem 1.5rem;
             margin: 1rem 0;
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            gap: 0.8rem;
         }
-        .panel-buttons {
+        .simple-panel-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .simple-textarea {
+            width: 100%;
+            padding: 0.8rem 1.2rem;
+            font-family: 'Monaco', monospace;
+            font-size: 0.8rem;
+            background: #fcf9f4;
+            border: 1px solid #c9b6a2;
+            border-radius: 36px;
+            resize: vertical;
+            min-height: 70px;
+        }
+        .help-icon {
+            background: #cbb59e;
+            border-radius: 50%;
+            width: 1.8rem;
+            height: 1.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 0.2rem;
+        }
+
+        /* 全量编辑面板 (CodeMirror) */
+        .full-edit-panel {
+            background: #e3d9ce;
+            border-radius: 40px;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+        .full-panel-buttons {
             display: flex;
             gap: 0.5rem;
             align-items: center;
             flex-wrap: wrap;
         }
         .cm-editor-container {
-            border: 1px solid #c9b6a2;
+            border: 1px solid #b9a690;
             border-radius: 24px;
             overflow: hidden;
             background: #fcf9f4;
+            max-height: 300px; /* 限制最大高度 */
         }
         .CodeMirror {
             height: auto;
-            min-height: 200px;
+            min-height: 150px;
+            max-height: 300px;
             font-family: 'Monaco', monospace;
             font-size: 0.9rem;
         }
@@ -252,7 +294,7 @@
         }
         .crumb-item:hover { background: #d4bfab; }
 
-        /* json树 - 优化高亮，确保覆盖整行 */
+        /* json树 - 优化高亮与移动端 */
         .json-tree {
             background: #fbf9f5;
             border: 1px solid #ddd2c2;
@@ -276,16 +318,20 @@
             border-radius: 30px;
             cursor: default;
             white-space: nowrap;
-            width: 100%;          /* 确保占满父容器宽度 */
-            min-width: max-content; /* 防止收缩 */
+            width: max-content;  /* 宽度由内容决定，保证背景覆盖内容 */
+            min-width: 100%;     /* 但保证至少占满父容器宽度（如果内容少） */
+            box-sizing: border-box;
         }
         .node-row.current-node {
             background: #efe4d7;
             outline: 1px solid #c9aa8b;
-            /* 确保背景从左边距开始 */
-            margin-left: -0.1rem;
-            padding-left: calc(0.1rem + 0.1rem);
-            width: calc(100% + 0.2rem); /* 补偿负边距 */
+            /* 移除负边距，通过父容器缩进自然延伸 */
+        }
+        /* 移动端调整：确保背景从左边0开始，但保留缩进 */
+        @media (max-width: 600px) {
+            .node-row.current-node {
+                /* 无需特殊处理，背景已覆盖内容区 */
+            }
         }
         .toggle {
             width: 1.2rem;
@@ -310,9 +356,11 @@
             border-radius: 30px;
             padding: 0.1rem 0.8rem;
             display: inline-block;
-            max-width: 400px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            /* 完全显示，不省略 */
+            max-width: none;
+            overflow: visible;
+            text-overflow: clip;
+            white-space: nowrap;
         }
         .type-badge {
             background: #dacbbc;
@@ -384,13 +432,15 @@
             .float-buttons { right: 1rem; bottom: 1rem; gap: 0.5rem; }
             .float-buttons .btn { width: 3rem; height: 3rem; font-size: 1.2rem; }
             .toast-message { font-size: 0.8rem; white-space: normal; }
-            .node-row { min-width: auto; } /* 移动端允许换行？但保留横向滚动 */
+            .json-tree { padding: 1rem 0.8rem; }
+            .tree-node { margin-left: 1rem; }
+            .tree-node ul { padding-left: 1rem; }
         }
     </style>
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · CodeMirror 集成</h1>
+        <h1>🍞 SugarCube 存档 · 双面板最终版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -404,12 +454,22 @@
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
 
-        <!-- 节点编辑面板 (CodeMirror) -->
-        <div class="node-edit-panel">
-            <div class="panel-buttons">
+        <!-- 简单编辑面板 (新建/删除节点 + 文本区) -->
+        <div class="simple-edit-panel">
+            <div class="simple-panel-buttons">
+                <button class="btn" id="newNodeBtn">➕ 新建节点</button>
+                <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
+                <span class="help-icon" id="newNodeHelp">?</span>
+            </div>
+            <textarea id="simpleTextarea" class="simple-textarea" placeholder='输入合法 JSON 插入到当前节点下…'></textarea>
+        </div>
+
+        <!-- 全量编辑面板 (CodeMirror) -->
+        <div class="full-edit-panel">
+            <div class="full-panel-buttons">
                 <button class="btn" id="editCurrentNodeBtn">✎ 编辑当前节点</button>
                 <button class="btn" id="pushNodeBtn">⏎ 推送修改</button>
-                <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
+                <button class="btn" id="clearEditorBtn">🗑️ 清空编辑器</button>
             </div>
             <div class="cm-editor-container">
                 <textarea id="nodeEditor" placeholder="当前节点的 JSON 表示..."></textarea>
@@ -507,7 +567,7 @@
                     matchBrackets: true,
                     styleActiveLine: true,
                     gutters: ['CodeMirror-lint-markers'],
-                    lint: true,                     // 需要 jsonlint
+                    lint: true,
                     extraKeys: {
                         'Ctrl-Space': 'autocomplete',
                         'Cmd-/': 'toggleComment',
@@ -521,19 +581,25 @@
                 });
             }
 
-            // 将当前节点加载到编辑器
+            // 将当前节点加载到编辑器（带大节点确认）
             function loadNodeToEditor(path) {
                 const nodeInfo = getNodeByPath(path);
                 if (!nodeInfo || nodeInfo.value === undefined) {
                     showToast('节点无效');
-                    return;
+                    return false;
                 }
                 const jsonStr = JSON.stringify(nodeInfo.value, null, 2);
+                // 大节点确认 (阈值 500KB)
+                if (jsonStr.length > 500 * 1024) {
+                    if (!confirm('当前节点非常大（超过500KB），加载到编辑器可能导致性能问题，确定继续吗？')) {
+                        return false;
+                    }
+                }
                 cmEditor.setValue(jsonStr);
                 currentEditPath = path.slice();
                 editorDirty = false;
-                // 保存到 IndexedDB (当前编辑状态)
                 saveEditorStateToDB();
+                return true;
             }
 
             // 推送编辑器内容到树
@@ -550,20 +616,24 @@
                     showToast('JSON 格式错误: ' + e.message);
                     return;
                 }
-                // 执行修改
                 modifyData(() => {
                     setValueByPath(currentEditPath, parsed);
-                    // 更新类型映射（清除该路径下的所有子类型，因为结构可能变化）
-                    // 简单起见，不清除，但可能导致显示类型错误，这里选择清除所有以当前路径开头的映射
+                    // 清除该路径下的所有子类型映射
                     const prefix = JSON.stringify(currentEditPath);
                     for (let key of nodeTypeMap.keys()) {
                         if (key.startsWith(prefix)) nodeTypeMap.delete(key);
                     }
                 });
                 editorDirty = false;
-                // 清除当前编辑路径 (表示已推送)
                 currentEditPath = null;
-                // 从 IndexedDB 中删除编辑状态
+                clearEditorStateInDB();
+            }
+
+            // 清空编辑器
+            function clearEditor() {
+                cmEditor.setValue('');
+                currentEditPath = null;
+                editorDirty = false;
                 clearEditorStateInDB();
             }
 
@@ -574,8 +644,7 @@
                         return false;
                     }
                 }
-                loadNodeToEditor(path);
-                return true;
+                return loadNodeToEditor(path);
             }
 
             // ----- IndexedDB 管理 -----
@@ -585,7 +654,7 @@
 
             function openDB() {
                 return new Promise((resolve, reject) => {
-                    const request = indexedDB.open(DB_NAME, 2); // 升级版本以兼容新结构
+                    const request = indexedDB.open(DB_NAME, 2);
                     request.onerror = () => reject(request.error);
                     request.onsuccess = () => {
                         db = request.result;
@@ -635,7 +704,6 @@
                 });
             }
 
-            // 保存编辑器状态（当前编辑节点和内容）
             async function saveEditorStateToDB() {
                 if (!db) return;
                 const editorState = {
@@ -684,14 +752,12 @@
                     matchPaths = saved.matchPaths || [];
                     matchIndex = saved.matchIndex !== undefined ? saved.matchIndex : -1;
                 }
-                // 初始化 CodeMirror
                 initCodeMirror();
-                // 尝试加载上次编辑状态
                 const editorSaved = await loadEditorStateFromDB();
                 if (editorSaved && editorSaved.currentEditPath) {
                     currentEditPath = editorSaved.currentEditPath;
                     cmEditor.setValue(editorSaved.editorContent);
-                    editorDirty = true; // 视为有未推送
+                    editorDirty = true;
                 }
                 fullRender();
                 updateJsonpathToggle();
@@ -729,7 +795,6 @@
                 return JSON.parse(JSON.stringify(obj));
             }
 
-            // 获取节点类型 (仅用于显示)
             function getNodeType(path, value) {
                 const pathStr = JSON.stringify(path);
                 if (nodeTypeMap.has(pathStr)) return nodeTypeMap.get(pathStr);
@@ -853,14 +918,13 @@
                 }
             }
 
-            // 修改数据并全量渲染
             function modifyData(callback) {
                 callback();
                 pushHistory();
                 fullRender();
             }
 
-            // ----- 树渲染（仅显示，无输入框）-----
+            // ----- 树渲染 -----
             function renderTree() {
                 const container = document.getElementById('jsonTree');
                 container.innerHTML = '';
@@ -886,7 +950,7 @@
                         const strPath = JSON.stringify(path);
                         if (expandedSet.has(strPath)) expandedSet.delete(strPath);
                         else expandedSet.add(strPath);
-                        fullRender(); // 展开/折叠需要重绘
+                        fullRender();
                     };
                 } else toggleSpan.textContent = '  ';
                 row.appendChild(toggleSpan);
@@ -899,7 +963,6 @@
                 row.appendChild(document.createElement('span')).className = 'colon';
                 row.lastChild.textContent = ':';
 
-                // 显示类型徽章
                 const currentType = getNodeType(path, value);
                 const typeBadge = document.createElement('span');
                 typeBadge.className = 'type-badge';
@@ -914,7 +977,6 @@
                     valSpan.onclick = (e) => { e.stopPropagation(); setCurrentPath(path); };
                     row.appendChild(valSpan);
                 } else {
-                    // 纯文本显示
                     const textSpan = document.createElement('span');
                     textSpan.className = 'value-text';
                     textSpan.textContent = (value === null) ? 'null' : String(value);
@@ -959,7 +1021,6 @@
                         if (nodeInfo.value && typeof nodeInfo.value === 'object') {
                             expandedSet.add(JSON.stringify(p));
                         }
-                        // 不自动渲染展开，仅切换高亮
                     };
                     bread.appendChild(crumb);
                     if (i < currentPath.length - 1) bread.appendChild(document.createTextNode(' / '));
@@ -975,7 +1036,35 @@
                 if (filterMode === 'blacklist') document.getElementById('addBlacklistBtn').classList.add('active');
             }
 
-            // 删除当前节点
+            // 简单面板：新建节点
+            document.getElementById('newNodeBtn').onclick = () => {
+                const raw = document.getElementById('simpleTextarea').value.trim();
+                if (!raw) return showToast('请输入 JSON');
+                let parsed;
+                try { parsed = JSON.parse(raw); } catch { return showToast('无效 JSON'); }
+                const nodeInfo = getNodeByPath(currentPath);
+                if (!nodeInfo || nodeInfo.value === undefined) return showToast('当前节点无效');
+                const target = nodeInfo.value;
+                if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点');
+
+                modifyData(() => {
+                    if (Array.isArray(target)) {
+                        if (Array.isArray(parsed)) target.push(...parsed);
+                        else target.push(parsed);
+                    } else {
+                        if (parsed && typeof parsed === 'object') Object.assign(target, parsed);
+                        else {
+                            let baseKey = 'newKey';
+                            let c=1; while (baseKey in target) baseKey = `newKey${c++}`;
+                            target[baseKey] = parsed;
+                        }
+                    }
+                    expandedSet.add(JSON.stringify(currentPath));
+                });
+                document.getElementById('simpleTextarea').value = '';
+            };
+
+            // 简单面板：删除节点
             document.getElementById('deleteNodeBtn').onclick = () => {
                 if (arrayEquals(currentPath, ['root'])) {
                     showToast('不能删除根节点');
@@ -996,14 +1085,30 @@
                 });
             };
 
-            // 编辑当前节点按钮
+            // 简单面板：帮助
+            document.getElementById('newNodeHelp').onclick = () => {
+                showToast('当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；为对象时：输入对象会合并，其他类型以newKey命名添加');
+            };
+
+            // 全量面板：编辑当前节点
             document.getElementById('editCurrentNodeBtn').onclick = () => {
                 tryEditNode(currentPath);
             };
 
-            // 推送修改按钮
+            // 全量面板：推送修改
             document.getElementById('pushNodeBtn').onclick = () => {
                 pushEditorToTree();
+            };
+
+            // 全量面板：清空编辑器
+            document.getElementById('clearEditorBtn').onclick = () => {
+                if (editorDirty) {
+                    if (confirm('确定清空编辑器吗？未推送的更改将丢失。')) {
+                        clearEditor();
+                    }
+                } else {
+                    clearEditor();
+                }
             };
 
             // JSONPath 切换
@@ -1079,7 +1184,7 @@
                         expandedSet.add(JSON.stringify(anc));
                 }
                 setCurrentPath(path);
-                fullRender(); // 需要展开节点
+                fullRender();
             }
 
             function updateMatchCounter() {
@@ -1212,9 +1317,6 @@
             document.getElementById('addBlacklistBtn').onclick = addToBlacklist;
             document.getElementById('toggleFilterModeBtn').onclick = toggleFilterMode;
             document.getElementById('clearFilterBtn').onclick = clearCurrentFilter;
-
-            // 初始渲染
-            // 已经在DB加载后调用 fullRender
         })();
     </script>
 </body>
