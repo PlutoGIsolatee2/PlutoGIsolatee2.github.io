@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 最终修复版</title>
+    <title>🍞 SugarCube 存档编辑器 · 最终版</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -88,7 +88,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 最终修复版</h1>
+        <h1>🍞 SugarCube 存档 · 最终版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -474,11 +474,13 @@
             saveStateToDB();
         }
 
+        // 设置当前路径，更新高亮和面包屑，并滚动到视图
         function setCurrentPath(path) {
             if (!path) return;
             currentPath = path.slice();
             updateCurrentNodeHighlight();
             renderBreadcrumb();
+            scrollCurrentNodeIntoView();  // 确保点击面包屑后滚动
             saveStateToDB();
         }
 
@@ -589,15 +591,20 @@
             return li;
         }
 
-        // 面包屑 - 根节点显示为 $
+        // 面包屑：显示格式 $, $/root, $/root/state, 等
         function renderBreadcrumb() {
             const bread = document.getElementById('breadcrumb');
             bread.innerHTML = '';
             let acc = [];
             for (let i = 0; i < currentPath.length; i++) {
                 acc.push(currentPath[i]);
-                const part = currentPath[i];
-                const display = (i === 0 && part === 'root') ? '$' : part;
+                // 生成显示文本
+                let display;
+                if (acc.length === 1) {
+                    display = '$';
+                } else {
+                    display = '$/' + acc.join('/');
+                }
                 const crumb = document.createElement('span');
                 crumb.className = 'crumb-item';
                 crumb.textContent = display;
@@ -605,8 +612,12 @@
                 crumb.onclick = (e) => {
                     const p = JSON.parse(e.target.dataset.path);
                     setCurrentPath(p);
-                    if (getNodeByPath(p).value && typeof getNodeByPath(p).value === 'object')
+                    // 如果目标节点是容器，则展开它（但setCurrentPath不会自动展开，用户可能需要手动点击展开按钮）
+                    // 为方便，自动展开该节点（如果它是容器）
+                    const nodeInfo = getNodeByPath(p);
+                    if (nodeInfo.value && typeof nodeInfo.value === 'object') {
                         expandedSet.add(JSON.stringify(p));
+                    }
                 };
                 bread.appendChild(crumb);
                 if (i < currentPath.length - 1) bread.appendChild(document.createTextNode(' / '));
@@ -679,17 +690,15 @@
             if (lastSearchTerm) search(lastSearchTerm);
         };
 
-        // ----- 搜索核心 (关键修复：去掉多余的root前缀) -----
+        // ----- 搜索核心 -----
         function search(term) {
             if (!term.trim()) { matchPaths = []; matchIndex = -1; fullRender(); return; }
             let matches = [];
             if (jsonpathMode) {
                 try {
                     const pointers = JSONPath({ path: term, json: rootWrapper, resultType: 'pointer', preventEval: true });
-                    // pointers 示例: ['/root/state', '/root/state/variables']
                     matches = pointers.map(p => {
                         let parts = p.slice(1).split('/').map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'));
-                        // 直接返回 parts，因为它已经以 'root' 开头
                         return parts;
                     });
                 } catch (e) { showToast('JSONPath 错误: ' + e.message); }
@@ -729,13 +738,11 @@
             matchIndex = idx;
             const path = matchPaths[idx];
 
-            // 检查路径有效性
             if (!getNodeByPath(path).value) {
                 showToast('路径无效，可能已被删除');
                 return;
             }
 
-            // 构建展开集合：所有祖先节点
             const newExpanded = new Set();
             for (let i = 1; i <= path.length; i++) {
                 const anc = path.slice(0, i);
