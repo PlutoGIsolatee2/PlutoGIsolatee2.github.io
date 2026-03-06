@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SugarCube 存档编辑器</title>
-    <!-- lz-string 核心库 -->
+    <title>🍞 SugarCube 存档编辑器 · 完全体</title>
+    <!-- lz-string & jsonpath-plus -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsonpath-plus@6.0.1/dist/index-browser-esm.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -26,7 +27,7 @@
             background: #fefcf7;
             border-radius: 28px;
             box-shadow: 0 25px 40px -12px rgba(40, 30, 10, 0.3);
-            padding: 2rem 2rem 3rem 2rem;
+            padding: 2rem 2rem 4rem 2rem;
             position: relative;
         }
         h1 {
@@ -94,33 +95,47 @@
             background: #fffcf8;
         }
 
-        /* json功能区 */
-        .new-node-bar {
+        /* 节点编辑面板 (合并新建/删除 + textarea) */
+        .node-edit-panel {
+            background: #ece3d9;
+            border-radius: 40px;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
-            margin: 0.5rem 0 0.2rem;
+            gap: 1rem;
         }
-        .new-node-bar .btn {
-            background: #b6aa9a;
-            color: #fefcf7;
-            padding: 0.5rem 1.8rem;
-            margin-right: 1rem;
-            box-shadow: 0 4px 8px rgba(120, 80, 50, 0.15);
+        .panel-buttons {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
         }
-        .new-node-textarea {
-            width: 100%;
+        .node-edit-textarea {
+            flex: 2 1 300px;
             padding: 0.8rem 1.2rem;
             font-family: 'Monaco', monospace;
             font-size: 0.8rem;
-            background: #f3efe8;
-            border: 1px solid #d1c3b2;
+            background: #fcf9f4;
+            border: 1px solid #c9b6a2;
             border-radius: 36px;
             resize: vertical;
             min-height: 70px;
-            margin: 0.2rem 0 1.4rem 0;
+        }
+        .help-icon {
+            background: #cbb59e;
+            border-radius: 50%;
+            width: 1.8rem;
+            height: 1.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: 0.2rem;
         }
 
-        /* 搜索面板 */
+        /* 搜索面板 + JSONPath 切换 */
         .search-panel {
             display: flex;
             flex-wrap: wrap;
@@ -131,13 +146,30 @@
             border-radius: 60px;
             margin: 1rem 0 0.8rem;
         }
-        .search-input {
-            flex: 3 1 200px;
-            padding: 0.6rem 1.2rem;
+        .search-wrapper {
+            flex: 3 1 250px;
+            display: flex;
+            background: white;
             border-radius: 40px;
             border: 1px solid #cfbfad;
-            background: white;
+            overflow: hidden;
+        }
+        .search-input {
+            flex: 1;
+            padding: 0.6rem 1.2rem;
+            border: none;
+            outline: none;
             font-size: 0.9rem;
+        }
+        .jsonpath-toggle {
+            background: #d9caba;
+            border: none;
+            padding: 0 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
         }
         .search-btn {
             background: #cab89e;
@@ -177,10 +209,7 @@
             gap: 0.8rem 1.2rem;
             font-size: 0.95rem;
         }
-        .filter-label {
-            font-weight: 500;
-            color: #4f3f33;
-        }
+        .filter-label { font-weight: 500; color: #4f3f33; }
         .filter-btn {
             background: #dbcdbc;
             border: none;
@@ -188,22 +217,11 @@
             padding: 0.4rem 1.2rem;
             font-size: 0.9rem;
             cursor: pointer;
-            transition: 0.1s;
             border: 1px solid #c5af99;
         }
-        .filter-btn.active {
-            background: #b87c5a;
-            color: white;
-            border-color: #9b6243;
-        }
-        .mode-toggle {
-            background: #cbb59e;
-            font-weight: 600;
-            min-width: 130px;
-        }
-        .clear-btn {
-            background: #ccb7a2;
-        }
+        .filter-btn.active { background: #b87c5a; color: white; border-color: #9b6243; }
+        .mode-toggle { background: #cbb59e; font-weight: 600; min-width: 130px; }
+        .clear-btn { background: #ccb7a2; }
 
         /* 面包屑 */
         .breadcrumb {
@@ -222,11 +240,8 @@
             padding: 0.1rem 0.5rem;
             border-radius: 30px;
             background: #f2ece3;
-            transition: 0.1s;
         }
-        .crumb-item:hover {
-            background: #d4bfab;
-        }
+        .crumb-item:hover { background: #d4bfab; }
 
         /* json树 */
         .json-tree {
@@ -234,33 +249,26 @@
             border: 1px solid #ddd2c2;
             border-radius: 32px;
             padding: 1.5rem 1.2rem;
-            overflow-x: auto;
+            overflow: auto;
             max-height: 500px;
-            overflow-y: auto;
             box-shadow: inset 0 0 0 1px rgba(255,250,240,0.8);
-            scroll-behavior: smooth; /* 容器内部平滑滚动 */
+            scroll-behavior: smooth;
         }
         .tree-node {
             margin-left: 1.4rem;
             list-style: none;
         }
-        .tree-node ul {
-            padding-left: 1.4rem;
-            margin: 0.2rem 0;
-            list-style: none;
-        }
+        .tree-node ul { padding-left: 1.4rem; margin: 0.2rem 0; list-style: none; }
         .node-row {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
             padding: 0.2rem 0.1rem;
             border-radius: 30px;
             cursor: default;
+            white-space: nowrap; /* 确保键名不换行，通过外部滚动查看 */
         }
-        .node-row.current-node {
-            background: #efe4d7;
-            outline: 1px solid #c9aa8b;
-        }
+        .node-row.current-node { background: #efe4d7; outline: 1px solid #c9aa8b; }
         .toggle {
             width: 1.2rem;
             display: inline-block;
@@ -272,13 +280,14 @@
         .key {
             font-weight: 600;
             color: #684e3a;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
             cursor: pointer;
+            /* 无省略，完全显示 */
         }
-        .colon {
-            margin-right: 4px;
+        .colon { margin-right: 4px; }
+        .value-block {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         .value-edit {
             background: transparent;
@@ -287,56 +296,50 @@
             padding: 0.2rem 0.8rem;
             font-size: 0.85rem;
             font-family: 'Monaco', monospace;
-            width: auto;
-            min-width: 100px;
-            max-width: 300px;
+            min-width: 150px;
         }
-        .value-edit:focus {
-            background: white;
-            border-color: #a16b48;
-            outline: none;
-        }
-        .node-summary {
-            color: #906f54;
-            font-size: 0.85rem;
+        .value-edit:focus { background: white; border-color: #a16b48; outline: none; }
+        .type-badge {
+            background: #dacbbc;
+            border-radius: 30px;
+            padding: 0.1rem 0.6rem;
+            font-size: 0.7rem;
+            font-weight: 600;
             cursor: pointer;
+            user-select: none;
         }
+        .node-summary { color: #906f54; font-size: 0.85rem; cursor: pointer; }
         .null-value { color: #9a887b; font-style: italic; }
 
-        /* 悬浮解码按钮 (fixed) */
+        /* 悬浮按钮组 (撤销/恢复/解/编) */
         .float-buttons {
             position: fixed;
             bottom: 2rem;
             right: 2rem;
             display: flex;
             flex-direction: column;
-            gap: 1rem;
+            gap: 0.8rem;
             pointer-events: none;
             z-index: 1000;
         }
         .float-buttons .btn {
             pointer-events: auto;
-            width: 4rem;
-            height: 4rem;
+            width: 3.5rem;
+            height: 3.5rem;
             border-radius: 60px;
-            font-size: 1.8rem;
-            font-weight: 400;
+            font-size: 1.4rem;
             display: flex;
             align-items: center;
             justify-content: center;
             box-shadow: 0 12px 18px -8px rgba(80, 50, 20, 0.5);
             border: none;
         }
-        .btn-encode {
-            background: #a77557;
-            color: white;
-        }
-        .btn-decode {
-            background: #d3b59b;
-            color: #2b1e14;
-        }
+        .btn-undo { background: #8f7b67; color: white; }
+        .btn-redo { background: #b09b88; color: white; }
+        .btn-encode { background: #a77557; color: white; }
+        .btn-decode { background: #d3b59b; color: #2b1e14; }
 
-        /* Toast 提示 */
+        /* Toast */
         .toast-message {
             position: fixed;
             bottom: 2rem;
@@ -360,20 +363,18 @@
             85% { opacity: 1; transform: translateX(-50%) translateY(0); }
             100% { opacity: 0; transform: translateX(-50%) translateY(-10px); }
         }
-
-        /* 响应式微调 */
         @media (max-width: 600px) {
             body { padding: 0.8rem; }
-            .editor-container { padding: 1.2rem 1rem 4.5rem; }
-            .float-buttons { right: 1rem; bottom: 1rem; gap: 0.8rem; }
-            .float-buttons .btn { width: 3.2rem; height: 3.2rem; font-size: 1.5rem; }
-            .toast-message { font-size: 0.8rem; padding: 0.5rem 1.2rem; white-space: normal; }
+            .editor-container { padding: 1.2rem 1rem 5rem; }
+            .float-buttons { right: 1rem; bottom: 1rem; gap: 0.5rem; }
+            .float-buttons .btn { width: 3rem; height: 3rem; font-size: 1.2rem; }
+            .toast-message { font-size: 0.8rem; white-space: normal; }
         }
     </style>
 </head>
 <body>
     <div class="editor-container">
-        <h1>SugarCube 存档编辑器</h1>
+        <h1>🍞 SugarCube 存档 · 完全体</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -387,15 +388,22 @@
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
 
-        <!-- json 新建区域 -->
-        <div class="new-node-bar">
-            <button class="btn" id="newNodeBtn">➕ 新建节点</button>
+        <!-- 节点编辑面板 (新建/删除 + textarea) 置于树下方 -->
+        <div class="node-edit-panel">
+            <div class="panel-buttons">
+                <button class="btn" id="newNodeBtn">➕ 新建节点</button>
+                <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
+                <span class="help-icon" id="newNodeHelp">?</span>
+            </div>
+            <textarea id="newNodeTextarea" class="node-edit-textarea" placeholder='输入合法 JSON 插入到当前节点下…'></textarea>
         </div>
-        <textarea id="newNodeTextarea" class="new-node-textarea" placeholder='输入合法 JSON 插入到当前节点下 (对象: {"key":"value"} / 数组: [value] …)'></textarea>
 
-        <!-- 搜索面板 -->
+        <!-- 搜索面板 + JSONPath 切换 -->
         <div class="search-panel">
-            <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 (不区分大小写)'>
+            <div class="search-wrapper">
+                <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath ($.xxx)'>
+                <button class="jsonpath-toggle" id="jsonpathToggleBtn">🔍 $</button>
+            </div>
             <button class="search-btn" id="searchBtn">搜索</button>
             <span class="match-indicator" id="matchCounter">0/0</span>
             <button class="nav-arrow" id="prevMatchBtn">◀</button>
@@ -417,8 +425,10 @@
         <!-- json 树区域 -->
         <div id="jsonTree" class="json-tree"></div>
 
-        <!-- 悬浮解/编按钮 -->
+        <!-- 悬浮按钮组 (撤销/恢复/解/编) -->
         <div class="float-buttons">
+            <button class="btn btn-undo" id="undoBtn">↩</button>
+            <button class="btn btn-redo" id="redoBtn">↪</button>
             <button class="btn btn-decode" id="decodeFloatBtn">解</button>
             <button class="btn btn-encode" id="encodeFloatBtn">编</button>
         </div>
@@ -426,49 +436,170 @@
 
     <script>
         (function() {
-            // ---------- 定义 SugarCube 专用编解码函数 ----------
+            // ----- 依赖库：LZString 和 JSONPath (通过全局) -----
+            const { JSONPath } = window;  // jsonpath-plus 暴露为全局
+
+            // ----- 核心编解码 -----
             function decodeSugarCubeSave(base64String) {
                 const trimmed = base64String.trim();
                 const jsonString = LZString.decompressFromBase64(trimmed);
                 if (!jsonString) throw new Error('无效的 SugarCube 存档 Base64 格式');
                 return JSON.parse(jsonString);
             }
-
             function encodeSugarCubeSave(saveObject) {
-                const jsonString = JSON.stringify(saveObject);
-                return LZString.compressToBase64(jsonString);
+                return LZString.compressToBase64(JSON.stringify(saveObject));
             }
 
-            // ---------- 全局变量 ----------
+            // ----- 全局状态 -----
             let rootWrapper = { root: { "example": "点击解码或输入base64" } };
             let currentPath = ['root'];
             let expandedSet = new Set();
+
+            // 历史记录 (版本控制)
+            let historyStack = [];          // 存储 rootWrapper 的快照
+            let historyIndex = -1;           // 当前所处位置
+            const MAX_HISTORY = 50;
 
             // 搜索结果
             let matchPaths = [];
             let matchIndex = -1;
             let lastSearchTerm = '';
+            let jsonpathMode = false;        // false=文本, true=JSONPath
 
-            // 黑白名单相关
+            // 黑白名单
             let whiteListPaths = new Set();
             let blackListPaths = new Set();
             let filterMode = 'none';
 
-            // ---------- Toast 提示 (优雅降级) ----------
-            function showToast(message, duration = 2000) {
-                const existing = document.querySelector('.toast-message');
-                if (existing) existing.remove();
+            // 节点类型映射 (存储每个路径的当前显示/编辑类型)
+            let nodeTypeMap = new Map();      // key: pathStr, value: 'string'|'number'|'boolean'|'null'|'object'|'array'
 
-                const toast = document.createElement('div');
-                toast.className = 'toast-message';
-                toast.textContent = message;
-                document.body.appendChild(toast);
-                setTimeout(() => {
-                    if (toast.parentNode) toast.remove();
-                }, duration);
+            // ----- IndexedDB 初始化 -----
+            const DB_NAME = 'SugarCubeEditorDB';
+            const STORE_NAME = 'editorState';
+            let db = null;
+
+            function openDB() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(DB_NAME, 1);
+                    request.onerror = () => reject(request.error);
+                    request.onsuccess = () => {
+                        db = request.result;
+                        resolve(db);
+                    };
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(STORE_NAME)) {
+                            db.createObjectStore(STORE_NAME);
+                        }
+                    };
+                });
             }
 
-            // ---------- 辅助函数 ----------
+            async function saveStateToDB() {
+                if (!db) return;
+                const state = {
+                    base64: document.getElementById('base64Input').value,
+                    rootWrapper: rootWrapper,
+                    whiteListPaths: Array.from(whiteListPaths),
+                    blackListPaths: Array.from(blackListPaths),
+                    filterMode: filterMode,
+                    historyStack: historyStack,
+                    historyIndex: historyIndex,
+                    nodeTypeMap: Array.from(nodeTypeMap.entries()),
+                    expandedSet: Array.from(expandedSet),
+                    currentPath: currentPath,
+                    jsonpathMode: jsonpathMode,
+                    lastSearchTerm: lastSearchTerm,
+                    matchPaths: matchPaths,
+                    matchIndex: matchIndex,
+                };
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                const store = tx.objectStore(STORE_NAME);
+                store.put(state, 'current');
+                return tx.complete;
+            }
+
+            async function loadStateFromDB() {
+                if (!db) return null;
+                const tx = db.transaction(STORE_NAME, 'readonly');
+                const store = tx.objectStore(STORE_NAME);
+                return new Promise((resolve) => {
+                    const request = store.get('current');
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = () => resolve(null);
+                });
+            }
+
+            // 初始化DB并加载
+            openDB().then(async () => {
+                const saved = await loadStateFromDB();
+                if (saved) {
+                    document.getElementById('base64Input').value = saved.base64 || '';
+                    rootWrapper = saved.rootWrapper || { root: {} };
+                    whiteListPaths = new Set(saved.whiteListPaths || []);
+                    blackListPaths = new Set(saved.blackListPaths || []);
+                    filterMode = saved.filterMode || 'none';
+                    historyStack = saved.historyStack || [];
+                    historyIndex = saved.historyIndex !== undefined ? saved.historyIndex : -1;
+                    nodeTypeMap = new Map(saved.nodeTypeMap || []);
+                    expandedSet = new Set(saved.expandedSet || []);
+                    currentPath = saved.currentPath || ['root'];
+                    jsonpathMode = saved.jsonpathMode || false;
+                    lastSearchTerm = saved.lastSearchTerm || '';
+                    matchPaths = saved.matchPaths || [];
+                    matchIndex = saved.matchIndex !== undefined ? saved.matchIndex : -1;
+                    refreshUI();
+                    updateJsonpathToggle();
+                } else {
+                    // 初始历史快照
+                    pushHistory();
+                }
+            }).catch(console.warn);
+
+            // ----- 历史管理 -----
+            function pushHistory() {
+                // 将当前 rootWrapper 深拷贝推入栈，并丢弃后面的
+                const snapshot = cloneDeep(rootWrapper);
+                if (historyIndex < historyStack.length - 1) {
+                    historyStack = historyStack.slice(0, historyIndex + 1);
+                }
+                historyStack.push(snapshot);
+                if (historyStack.length > MAX_HISTORY) historyStack.shift();
+                historyIndex = historyStack.length - 1;
+                saveStateToDB();
+            }
+
+            function undo() {
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    rootWrapper = cloneDeep(historyStack[historyIndex]);
+                    refreshUI();
+                    saveStateToDB();
+                } else {
+                    showToast('没有上一步');
+                }
+            }
+
+            function redo() {
+                if (historyIndex < historyStack.length - 1) {
+                    historyIndex++;
+                    rootWrapper = cloneDeep(historyStack[historyIndex]);
+                    refreshUI();
+                    saveStateToDB();
+                } else {
+                    showToast('没有下一步');
+                }
+            }
+
+            // 包装数据修改操作：执行修改后 pushHistory 并刷新
+            function modifyData(callback) {
+                callback();
+                pushHistory();
+                refreshUI();
+            }
+
+            // ----- 辅助函数 -----
             function getNodeByPath(path) {
                 if (!Array.isArray(path) || path.length === 0) return { parent: null, key: null, value: rootWrapper };
                 let value = rootWrapper;
@@ -484,9 +615,8 @@
             }
 
             function setValueByPath(path, newValue) {
-                if (!Array.isArray(path) || path.length === 0) return false;
                 const { parent, key } = getNodeByPath(path);
-                if (parent && typeof parent === 'object' && key !== null && key !== undefined) {
+                if (parent && typeof parent === 'object' && key !== null) {
                     parent[key] = newValue;
                     return true;
                 }
@@ -501,79 +631,106 @@
                 return a.length === b.length && a.every((v,i)=> v===b[i]);
             }
 
-            function tryParseJson(str) {
-                if (str === 'null') return null;
-                if (str === 'true') return true;
-                if (str === 'false') return false;
-                if (/^-?\d+(\.\d+)?$/.test(str)) return Number(str);
-                try {
-                    return JSON.parse(str);
-                } catch {
+            // 智能解析为指定类型
+            function parseAsType(str, type) {
+                if (type === 'string') return str;
+                if (type === 'number') {
+                    const num = Number(str);
+                    return isNaN(num) ? str : num; // 若转换失败返回原字符串
+                }
+                if (type === 'boolean') {
+                    if (str.toLowerCase() === 'true') return true;
+                    if (str.toLowerCase() === 'false') return false;
                     return str;
                 }
+                if (type === 'null') return null;
+                if (type === 'object' || type === 'array') {
+                    try {
+                        return JSON.parse(str);
+                    } catch {
+                        return str;
+                    }
+                }
+                return str;
             }
 
-            // ---------- 滚动当前节点到视野中央 (仅容器内部) ----------
+            // 获取当前节点类型 (默认从映射取，否则根据值推断)
+            function getNodeType(path, value) {
+                const pathStr = JSON.stringify(path);
+                if (nodeTypeMap.has(pathStr)) return nodeTypeMap.get(pathStr);
+                if (value === null) return 'null';
+                if (Array.isArray(value)) return 'array';
+                if (typeof value === 'object') return 'object';
+                return typeof value; // string, number, boolean
+            }
+
+            // 设置节点类型映射
+            function setNodeType(path, type) {
+                const pathStr = JSON.stringify(path);
+                nodeTypeMap.set(pathStr, type);
+            }
+
+            // ----- 滚动节点到视野中央 (横向+纵向) -----
             function scrollCurrentNodeIntoView() {
                 requestAnimationFrame(() => {
                     const container = document.getElementById('jsonTree');
                     if (!container) return;
-
                     const rows = container.querySelectorAll('.node-row');
                     const targetRow = Array.from(rows).find(row => {
                         const pathAttr = row.getAttribute('data-path');
                         if (!pathAttr) return false;
-                        try {
-                            const path = JSON.parse(pathAttr);
-                            return arrayEquals(path, currentPath);
-                        } catch {
-                            return false;
-                        }
+                        try { return arrayEquals(JSON.parse(pathAttr), currentPath); }
+                        catch { return false; }
                     });
-
                     if (!targetRow) return;
 
-                    // 计算目标在容器内的位置并滚动
                     const containerRect = container.getBoundingClientRect();
                     const targetRect = targetRow.getBoundingClientRect();
 
-                    // 目标相对于容器顶部的偏移量 (像素)
+                    // 垂直居中
                     const relativeTop = targetRect.top - containerRect.top;
-
-                    // 目标元素自身高度
                     const targetHeight = targetRow.offsetHeight;
-
-                    // 目标应该滚动到的位置：当前滚动位置 + relativeTop - 容器高度的一半 + 目标高度的一半
                     const targetScrollTop = container.scrollTop + relativeTop - (container.clientHeight / 2) + (targetHeight / 2);
 
-                    // 平滑滚动容器
-                    container.scrollTo({
-                        top: targetScrollTop,
-                        behavior: 'smooth'
-                    });
+                    // 水平居中
+                    const relativeLeft = targetRect.left - containerRect.left;
+                    const targetWidth = targetRow.offsetWidth;
+                    const targetScrollLeft = container.scrollLeft + relativeLeft - (container.clientWidth / 2) + (targetWidth / 2);
+
+                    container.scrollTo({ top: targetScrollTop, left: targetScrollLeft, behavior: 'smooth' });
                 });
             }
 
-            // 刷新UI (重绘树 + 面包屑 + 滚动)
+            // ----- Toast -----
+            function showToast(message, duration = 2000) {
+                const existing = document.querySelector('.toast-message');
+                if (existing) existing.remove();
+                const toast = document.createElement('div');
+                toast.className = 'toast-message';
+                toast.textContent = message;
+                document.body.appendChild(toast);
+                setTimeout(() => toast.remove(), duration);
+            }
+
+            // ----- 刷新UI -----
             function refreshUI() {
                 renderTree();
                 renderBreadcrumb();
                 updateMatchCounter();
                 updateFilterUI();
-                scrollCurrentNodeIntoView();  // 仅容器内滚动，不影响body
+                scrollCurrentNodeIntoView();
+                saveStateToDB(); // 自动保存
             }
 
-            // 标记当前节点
             function setCurrentPath(path) {
-                if (!path) return;
                 currentPath = path.slice();
                 refreshUI();
             }
 
-            // ---------- 树渲染 ----------
+            // ----- 树渲染 (带类型切换) -----
             function renderTree() {
                 const container = document.getElementById('jsonTree');
-                container.innerHTML = ''; 
+                container.innerHTML = '';
                 const rootEl = renderNode('root', rootWrapper['root'], ['root'], 0);
                 if (rootEl) container.appendChild(rootEl);
             }
@@ -594,64 +751,95 @@
                     toggleSpan.onclick = (e) => {
                         e.stopPropagation();
                         const strPath = JSON.stringify(path);
-                        if (expandedSet.has(strPath)) expandedSet.delete(strPath);
-                        else expandedSet.add(strPath);
-                        renderTree();
-                        renderBreadcrumb();
+                        expandedSet.has(strPath) ? expandedSet.delete(strPath) : expandedSet.add(strPath);
+                        renderTree(); renderBreadcrumb();
                     };
-                } else {
-                    toggleSpan.textContent = '  ';
-                }
+                } else toggleSpan.textContent = '  ';
                 row.appendChild(toggleSpan);
 
+                // 键名
                 const keySpan = document.createElement('span');
                 keySpan.className = 'key';
                 keySpan.textContent = key;
-                keySpan.onclick = (e) => {
-                    e.stopPropagation();
-                    setCurrentPath(path);
-                };
+                keySpan.onclick = (e) => { e.stopPropagation(); setCurrentPath(path); };
                 row.appendChild(keySpan);
                 row.appendChild(document.createElement('span')).className = 'colon';
                 row.lastChild.textContent = ':';
 
+                // 值区域
                 if (isCollapsible) {
                     const summary = Array.isArray(value) ? `Array(${value.length})` : 'Object';
                     const valSpan = document.createElement('span');
                     valSpan.className = 'node-summary';
                     valSpan.textContent = ` ${summary}`;
-                    valSpan.onclick = (e) => {
-                        e.stopPropagation();
-                        setCurrentPath(path);
-                    };
+                    valSpan.onclick = (e) => { e.stopPropagation(); setCurrentPath(path); };
                     row.appendChild(valSpan);
                 } else {
-                    if (value === null) {
-                        const nullSpan = document.createElement('span');
-                        nullSpan.className = 'null-value';
-                        nullSpan.textContent = 'null';
-                        nullSpan.onclick = (e) => {
-                            e.stopPropagation();
-                            setCurrentPath(path);
-                        };
-                        row.appendChild(nullSpan);
-                    } else {
-                        const input = document.createElement('input');
-                        input.type = 'text';
-                        input.className = 'value-edit';
-                        input.value = (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') ? String(value) : JSON.stringify(value);
-                        input.dataset.path = JSON.stringify(path);
-                        input.addEventListener('click', (e) => e.stopPropagation());
-                        input.addEventListener('change', function(e) {
-                            const raw = e.target.value;
-                            const parsed = tryParseJson(raw);
-                            const targetPath = JSON.parse(e.target.dataset.path);
-                            rootWrapper = cloneDeep(rootWrapper);
-                            setValueByPath(targetPath, parsed);
-                            refreshUI();
+                    const valueBlock = document.createElement('span');
+                    valueBlock.className = 'value-block';
+
+                    // 类型徽章
+                    const currentType = getNodeType(path, value);
+                    const typeBadge = document.createElement('span');
+                    typeBadge.className = 'type-badge';
+                    typeBadge.textContent = currentType;
+                    typeBadge.onclick = (e) => {
+                        e.stopPropagation();
+                        // 循环切换类型
+                        const types = ['string', 'number', 'boolean', 'null', 'object', 'array'];
+                        let idx = types.indexOf(currentType);
+                        idx = (idx + 1) % types.length;
+                        const newType = types[idx];
+                        const oldValue = value;
+                        let newValue;
+                        try {
+                            if (newType === 'object' || newType === 'array') {
+                                // 尝试解析当前字符串为JSON
+                                newValue = JSON.parse(String(oldValue));
+                            } else {
+                                newValue = parseAsType(String(oldValue), newType);
+                            }
+                        } catch {
+                            newValue = oldValue; // 保留原样
+                            showToast(`无法转换为${newType}，已保留原值`);
+                        }
+                        modifyData(() => {
+                            setNodeType(path, newType);
+                            setValueByPath(path, newValue);
                         });
-                        row.appendChild(input);
-                    }
+                    };
+                    valueBlock.appendChild(typeBadge);
+
+                    // 输入框
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.className = 'value-edit';
+                    input.value = (value === null) ? 'null' : String(value);
+                    input.dataset.path = JSON.stringify(path);
+                    input.addEventListener('click', e => e.stopPropagation());
+                    input.addEventListener('change', e => {
+                        const raw = e.target.value;
+                        const targetPath = JSON.parse(e.target.dataset.path);
+                        const nodeInfo = getNodeByPath(targetPath);
+                        const oldValue = nodeInfo.value;
+                        const currentType = getNodeType(targetPath, oldValue);
+                        let parsed;
+                        try {
+                            parsed = parseAsType(raw, currentType);
+                        } catch {
+                            parsed = raw; // fallback
+                        }
+                        // 如果解析后的类型与期望不符，提示但仍保存
+                        const actualType = parsed === null ? 'null' : typeof parsed;
+                        if (actualType !== currentType && !(currentType === 'object' && actualType === 'array')) {
+                            showToast(`输入值类型(${actualType})与当前类型(${currentType})不符，但已保存`);
+                        }
+                        modifyData(() => {
+                            setValueByPath(targetPath, parsed);
+                        });
+                    });
+                    valueBlock.appendChild(input);
+                    row.appendChild(valueBlock);
                 }
 
                 li.appendChild(row);
@@ -660,13 +848,11 @@
                     const children = document.createElement('ul');
                     if (Array.isArray(value)) {
                         value.forEach((item, idx) => {
-                            const childPath = path.concat(idx.toString());
-                            children.appendChild(renderNode(idx.toString(), item, childPath, level + 1));
+                            children.appendChild(renderNode(idx.toString(), item, path.concat(idx.toString()), level+1));
                         });
                     } else if (value && typeof value === 'object') {
                         Object.entries(value).forEach(([k, v]) => {
-                            const childPath = path.concat(k);
-                            children.appendChild(renderNode(k, v, childPath, level + 1));
+                            children.appendChild(renderNode(k, v, path.concat(k), level+1));
                         });
                     }
                     li.appendChild(children);
@@ -689,8 +875,7 @@
                     crumb.onclick = (e) => {
                         const p = JSON.parse(e.target.dataset.path);
                         setCurrentPath(p);
-                        const nodeInfo = getNodeByPath(p);
-                        if (nodeInfo.value && typeof nodeInfo.value === 'object') {
+                        if (getNodeByPath(p).value && typeof getNodeByPath(p).value === 'object') {
                             expandedSet.add(JSON.stringify(p));
                         }
                         refreshUI();
@@ -700,117 +885,94 @@
                 }
             }
 
-            // ---------- 黑白名单逻辑 ----------
+            // 黑白名单UI更新
             function updateFilterUI() {
                 const toggleBtn = document.getElementById('toggleFilterModeBtn');
-                let text = '🔘 未启用';
-                if (filterMode === 'whitelist') text = '⚪ 启用白名单';
-                else if (filterMode === 'blacklist') text = '⚫ 启用黑名单';
-                toggleBtn.textContent = text;
-
+                toggleBtn.textContent = filterMode === 'none' ? '🔘 未启用' : (filterMode === 'whitelist' ? '⚪ 启用白名单' : '⚫ 启用黑名单');
                 document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
                 if (filterMode === 'whitelist') document.getElementById('addWhitelistBtn').classList.add('active');
                 if (filterMode === 'blacklist') document.getElementById('addBlacklistBtn').classList.add('active');
             }
 
-            function addToWhitelist() {
-                const pathStr = JSON.stringify(currentPath);
-                if (blackListPaths.has(pathStr)) blackListPaths.delete(pathStr);
-                whiteListPaths.add(pathStr);
-                showToast(`已添加 [${currentPath.join('/')}] 到白名单`);
-                updateFilterUI();
-            }
+            // 新增节点帮助
+            document.getElementById('newNodeHelp').onclick = () => {
+                showToast('当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；为对象时：输入对象会合并，其他类型以newKey命名添加');
+            };
 
-            function addToBlacklist() {
-                const pathStr = JSON.stringify(currentPath);
-                if (whiteListPaths.has(pathStr)) whiteListPaths.delete(pathStr);
-                blackListPaths.add(pathStr);
-                showToast(`已添加 [${currentPath.join('/')}] 到黑名单`);
-                updateFilterUI();
-            }
-
-            function toggleFilterMode() {
-                if (filterMode === 'none') filterMode = 'whitelist';
-                else if (filterMode === 'whitelist') filterMode = 'blacklist';
-                else filterMode = 'none';
-                showToast(`搜索过滤模式: ${filterMode === 'none' ? '未启用' : (filterMode === 'whitelist' ? '白名单' : '黑名单')}`);
-                updateFilterUI();
-                if (lastSearchTerm) search(lastSearchTerm);
-            }
-
-            function clearCurrentFilter() {
-                if (filterMode === 'whitelist') {
-                    whiteListPaths.clear();
-                    showToast('白名单已清空');
-                } else if (filterMode === 'blacklist') {
-                    blackListPaths.clear();
-                    showToast('黑名单已清空');
-                } else {
-                    whiteListPaths.clear();
-                    blackListPaths.clear();
-                    showToast('所有名单已清空');
+            // 删除当前节点
+            document.getElementById('deleteNodeBtn').onclick = () => {
+                if (arrayEquals(currentPath, ['root'])) {
+                    showToast('不能删除根节点');
+                    return;
                 }
+                modifyData(() => {
+                    const { parent, key } = getNodeByPath(currentPath);
+                    if (parent && key !== null) {
+                        if (Array.isArray(parent)) {
+                            parent.splice(Number(key), 1);
+                        } else {
+                            delete parent[key];
+                        }
+                    }
+                });
+            };
+
+            // JSONPath 切换
+            function updateJsonpathToggle() {
+                document.getElementById('jsonpathToggleBtn').innerHTML = jsonpathMode ? '🔍 $ (路径)' : '🔍 a (文本)';
+            }
+            document.getElementById('jsonpathToggleBtn').onclick = () => {
+                jsonpathMode = !jsonpathMode;
+                updateJsonpathToggle();
                 if (lastSearchTerm) search(lastSearchTerm);
-                else refreshUI();
-            }
+            };
 
-            function isPathAllowed(path) {
-                if (filterMode === 'none') return true;
-                const pathStr = JSON.stringify(path);
-                if (filterMode === 'whitelist') {
-                    for (let i = 1; i <= path.length; i++) {
-                        const ancestorStr = JSON.stringify(path.slice(0, i));
-                        if (whiteListPaths.has(ancestorStr)) return true;
-                    }
-                    return false;
-                } else if (filterMode === 'blacklist') {
-                    for (let i = 1; i <= path.length; i++) {
-                        const ancestorStr = JSON.stringify(path.slice(0, i));
-                        if (blackListPaths.has(ancestorStr)) return false;
-                    }
-                    return true;
-                }
-                return true;
-            }
-
-            // ---------- 搜索 ----------
+            // 搜索函数 (支持文本和JSONPath)
             function search(term) {
                 if (!term.trim()) { matchPaths = []; matchIndex = -1; refreshUI(); return; }
-                const lowerTerm = term.toLowerCase();
-                const matches = [];
-
-                function traverse(obj, path) {
-                    if (!obj || typeof obj !== 'object') return;
-
-                    if (Array.isArray(obj)) {
-                        obj.forEach((item, idx) => {
-                            const currentPath = path.concat(idx.toString());
-                            if (!isPathAllowed(currentPath)) return;
-                            if (idx.toString().toLowerCase().includes(lowerTerm)) matches.push(currentPath.slice());
-                            if (item && typeof item === 'object') traverse(item, currentPath);
-                            else {
-                                const strVal = String(item).toLowerCase();
-                                if (strVal.includes(lowerTerm)) matches.push(currentPath.slice());
-                            }
+                let matches = [];
+                if (jsonpathMode) {
+                    try {
+                        const results = JSONPath({ path: term, json: rootWrapper });
+                        // results 是值数组，需要转成路径
+                        // 简单起见，只支持返回路径？JSONPath可以返回路径，但需要设置resultType: 'path'。
+                        // 这里用另一种方式：遍历并匹配值？但需求是JSONPath-Plus模式，我们简单使用库返回路径。
+                        // 由于JSONPath直接返回路径字符串如 "$['root']['state']"，我们可以转换。
+                        // 但为了兼容，我们改用JSONPath的路径格式，并转换为数组路径。
+                        const pathResults = JSONPath({ path: term, json: rootWrapper, resultType: 'path' });
+                        matches = pathResults.map(p => {
+                            // 路径格式类似 "$['root']['key']" 或 "$[0]" ，转换为数组
+                            const parts = p.replace(/^\$\[?/, '').split(/\]\['?|'\]\[|'\]|\[/).filter(s => s && s !== '');
+                            return ['root', ...parts];
                         });
-                    } else {
-                        Object.entries(obj).forEach(([k, v]) => {
-                            const currentPath = path.concat(k);
-                            if (!isPathAllowed(currentPath)) return;
-                            if (k.toLowerCase().includes(lowerTerm)) matches.push(currentPath.slice());
-                            if (v && typeof v === 'object') traverse(v, currentPath);
-                            else {
-                                const strVal = String(v).toLowerCase();
-                                if (strVal.includes(lowerTerm)) matches.push(currentPath.slice());
-                            }
-                        });
+                    } catch (e) {
+                        showToast('JSONPath 错误: ' + e.message);
+                        matches = [];
                     }
-                }
-
-                if (rootWrapper.root && typeof rootWrapper.root === 'object') {
+                } else {
+                    const lowerTerm = term.toLowerCase();
+                    function traverse(obj, path) {
+                        if (!obj || typeof obj !== 'object') return;
+                        if (Array.isArray(obj)) {
+                            obj.forEach((item, idx) => {
+                                const curPath = path.concat(idx.toString());
+                                if (!isPathAllowed(curPath)) return;
+                                if (idx.toString().toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                                if (item && typeof item === 'object') traverse(item, curPath);
+                                else if (String(item).toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                            });
+                        } else {
+                            Object.entries(obj).forEach(([k, v]) => {
+                                const curPath = path.concat(k);
+                                if (!isPathAllowed(curPath)) return;
+                                if (k.toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                                if (v && typeof v === 'object') traverse(v, curPath);
+                                else if (String(v).toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                            });
+                        }
+                    }
                     traverse(rootWrapper.root, ['root']);
                 }
-
                 matchPaths = matches;
                 matchIndex = matchPaths.length > 0 ? 0 : -1;
                 if (matchIndex >= 0) jumpToMatch(matchIndex);
@@ -819,160 +981,178 @@
             }
 
             function jumpToMatch(idx) {
-                if (!matchPaths.length || idx < 0 || idx >= matchPaths.length) return;
+                if (!matchPaths.length) return;
                 matchIndex = idx;
                 const path = matchPaths[idx];
                 expandedSet.clear();
                 for (let i = 1; i <= path.length; i++) {
                     const anc = path.slice(0, i);
-                    const val = getNodeByPath(anc).value;
-                    if (val && typeof val === 'object') expandedSet.add(JSON.stringify(anc));
+                    if (getNodeByPath(anc).value && typeof getNodeByPath(anc).value === 'object')
+                        expandedSet.add(JSON.stringify(anc));
                 }
                 setCurrentPath(path);
             }
 
             function updateMatchCounter() {
-                const span = document.getElementById('matchCounter');
-                span.textContent = matchPaths.length ? `${matchIndex+1}/${matchPaths.length}` : '0/0';
+                document.getElementById('matchCounter').textContent = matchPaths.length ? `${matchIndex+1}/${matchPaths.length}` : '0/0';
             }
 
-            // ---------- 新建节点 ----------
+            function isPathAllowed(path) {
+                if (filterMode === 'none') return true;
+                if (filterMode === 'whitelist') {
+                    for (let i=1; i<=path.length; i++) if (whiteListPaths.has(JSON.stringify(path.slice(0,i)))) return true;
+                    return false;
+                } else {
+                    for (let i=1; i<=path.length; i++) if (blackListPaths.has(JSON.stringify(path.slice(0,i)))) return false;
+                    return true;
+                }
+            }
+
+            // 黑白名单操作
+            function addToWhitelist() {
+                const p = JSON.stringify(currentPath);
+                blackListPaths.delete(p); whiteListPaths.add(p);
+                showToast(`已添加 [${currentPath.join('/')}] 到白名单`);
+                updateFilterUI(); saveStateToDB();
+            }
+            function addToBlacklist() {
+                const p = JSON.stringify(currentPath);
+                whiteListPaths.delete(p); blackListPaths.add(p);
+                showToast(`已添加 [${currentPath.join('/')}] 到黑名单`);
+                updateFilterUI(); saveStateToDB();
+            }
+            function toggleFilterMode() {
+                filterMode = filterMode === 'none' ? 'whitelist' : filterMode === 'whitelist' ? 'blacklist' : 'none';
+                showToast(`过滤模式: ${filterMode}`);
+                updateFilterUI();
+                if (lastSearchTerm) search(lastSearchTerm);
+            }
+            function clearCurrentFilter() {
+                if (filterMode === 'whitelist') whiteListPaths.clear();
+                else if (filterMode === 'blacklist') blackListPaths.clear();
+                else { whiteListPaths.clear(); blackListPaths.clear(); }
+                showToast('名单已清空');
+                if (lastSearchTerm) search(lastSearchTerm);
+                else refreshUI();
+            }
+
+            // 新建节点
             function createNewNodeFromText() {
-                const textarea = document.getElementById('newNodeTextarea');
-                const raw = textarea.value.trim();
-                if (!raw) return showToast('请输入 JSON', 1500);
+                const raw = document.getElementById('newNodeTextarea').value.trim();
+                if (!raw) return showToast('请输入 JSON');
                 let parsed;
-                try {
-                    parsed = JSON.parse(raw);
-                } catch {
-                    return showToast('无效 JSON', 1500);
-                }
+                try { parsed = JSON.parse(raw); } catch { return showToast('无效 JSON'); }
                 const nodeInfo = getNodeByPath(currentPath);
-                if (!nodeInfo || nodeInfo.value === undefined) return showToast('当前节点无效', 1500);
+                if (!nodeInfo || nodeInfo.value === undefined) return showToast('当前节点无效');
                 const target = nodeInfo.value;
-                if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点', 1500);
+                if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点');
 
-                rootWrapper = cloneDeep(rootWrapper);
-                const actualParent = getNodeByPath(currentPath).value;
-                if (Array.isArray(actualParent)) {
-                    if (Array.isArray(parsed)) actualParent.push(...parsed);
-                    else actualParent.push(parsed);
-                } else if (actualParent && typeof actualParent === 'object') {
-                    if (parsed && typeof parsed === 'object') {
-                        Object.assign(actualParent, parsed);
+                modifyData(() => {
+                    if (Array.isArray(target)) {
+                        if (Array.isArray(parsed)) target.push(...parsed);
+                        else target.push(parsed);
                     } else {
-                        let baseKey = 'newKey';
-                        let counter = 1;
-                        while (baseKey in actualParent) baseKey = `newKey${counter++}`;
-                        actualParent[baseKey] = parsed;
+                        if (parsed && typeof parsed === 'object') Object.assign(target, parsed);
+                        else {
+                            let baseKey = 'newKey';
+                            let c=1; while (baseKey in target) baseKey = `newKey${c++}`;
+                            target[baseKey] = parsed;
+                        }
                     }
-                }
-                expandedSet.add(JSON.stringify(currentPath));
-                refreshUI();
-                textarea.value = '';
-                showToast('节点已添加');
+                    expandedSet.add(JSON.stringify(currentPath));
+                });
+                document.getElementById('newNodeTextarea').value = '';
             }
 
-            // ---------- Base64 解码 ----------
+            // 解码并自动推历史
             function decodeFromBase64() {
                 const base64 = document.getElementById('base64Input').value.trim();
-                if (!base64) return showToast('Base64 为空', 1500);
+                if (!base64) return showToast('Base64 为空');
                 try {
                     const decoded = decodeSugarCubeSave(base64);
-                    rootWrapper = { root: decoded };
-                    expandedSet.clear();
-                    whiteListPaths.clear();
-                    blackListPaths.clear();
-                    filterMode = 'none';
-                    currentPath = ['root'];
-                    refreshUI();
+                    modifyData(() => {
+                        rootWrapper = { root: decoded };
+                        expandedSet.clear();
+                        whiteListPaths.clear();
+                        blackListPaths.clear();
+                        filterMode = 'none';
+                        currentPath = ['root'];
+                        nodeTypeMap.clear();
+                    });
                     showToast('解码成功');
-                } catch (e) {
-                    showToast('解码失败: ' + e.message, 2500);
-                }
+                } catch (e) { showToast('解码失败: ' + e.message); }
             }
 
-            // ---------- 编码并复制 (优雅降级) ----------
+            // 编码并复制
             function encodeAndCopy() {
                 try {
-                    if (!rootWrapper.root) throw new Error('无存档数据');
                     const base64 = encodeSugarCubeSave(rootWrapper.root);
                     document.getElementById('base64Input').value = base64;
-                    navigator.clipboard.writeText(base64).then(() => {
-                        showToast('编码已复制到剪贴板');
-                    }).catch(() => {
-                        showToast('编码成功，但自动复制失败，请手动复制', 2500);
-                    });
-                } catch (e) {
-                    showToast('编码失败: ' + e.message, 2500);
-                }
+                    navigator.clipboard.writeText(base64).then(() => showToast('编码已复制')).catch(() => showToast('编码成功，但复制失败'));
+                } catch (e) { showToast('编码失败: ' + e.message); }
             }
 
-            // ---------- 文件选择 ----------
+            // 粘贴并自动解码
+            document.getElementById('pasteBase64Btn').onclick = () => {
+                navigator.clipboard.readText().then(text => {
+                    document.getElementById('base64Input').value = text;
+                    decodeFromBase64(); // 自动解码
+                }).catch(() => showToast('无法读取剪贴板'));
+            };
+
+            // 文件选择并自动解码
             document.getElementById('filePicker').addEventListener('change', function(e) {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     document.getElementById('base64Input').value = ev.target.result;
-                    showToast(`已加载文件: ${file.name}`);
+                    decodeFromBase64(); // 自动解码
                 };
                 reader.readAsText(file);
             });
 
-            // 剪贴板粘贴 (优雅降级)
-            document.getElementById('pasteBase64Btn').onclick = () => {
-                navigator.clipboard.readText().then(text => {
-                    document.getElementById('base64Input').value = text;
-                    showToast('已粘贴');
-                }).catch(() => showToast('无法读取剪贴板，请手动粘贴', 2000));
-            };
+            // 按钮绑定
             document.getElementById('copyBase64Btn').onclick = () => {
-                const val = document.getElementById('base64Input').value;
-                navigator.clipboard.writeText(val).then(() => showToast('已复制')).catch(() => showToast('复制失败，请手动复制', 2000));
+                navigator.clipboard.writeText(document.getElementById('base64Input').value).then(() => showToast('已复制')).catch(() => showToast('复制失败'));
             };
             document.getElementById('downloadBase64Btn').onclick = () => {
                 const val = document.getElementById('base64Input').value;
-                if (!val) return showToast('没有可下载的内容', 1500);
-                try {
-                    const blob = new Blob([val], {type: 'text/plain'});
-                    const a = document.createElement('a');
-                    a.href = URL.createObjectURL(blob);
-                    a.download = 'sugarcube_save.txt';
-                    a.click();
-                    URL.revokeObjectURL(a.href);
-                    showToast('下载已开始');
-                } catch (e) {
-                    showToast('下载失败: ' + e.message, 2000);
-                }
+                if (!val) return showToast('无内容');
+                const blob = new Blob([val], {type: 'text/plain'});
+                const a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = 'sugarcube_save.txt';
+                a.click();
+                URL.revokeObjectURL(a.href);
             };
-
-            // 按钮绑定
+            document.getElementById('undoBtn').onclick = undo;
+            document.getElementById('redoBtn').onclick = redo;
             document.getElementById('decodeFloatBtn').onclick = decodeFromBase64;
             document.getElementById('encodeFloatBtn').onclick = encodeAndCopy;
             document.getElementById('newNodeBtn').onclick = createNewNodeFromText;
             document.getElementById('searchBtn').onclick = () => {
-                const term = document.getElementById('searchInput').value;
-                lastSearchTerm = term;
-                search(term);
+                lastSearchTerm = document.getElementById('searchInput').value;
+                search(lastSearchTerm);
             };
             document.getElementById('prevMatchBtn').onclick = () => {
-                if (matchPaths.length && matchIndex > 0) jumpToMatch(matchIndex - 1);
+                if (matchPaths.length && matchIndex > 0) jumpToMatch(matchIndex-1);
                 updateMatchCounter();
             };
             document.getElementById('nextMatchBtn').onclick = () => {
-                if (matchPaths.length && matchIndex < matchPaths.length-1) jumpToMatch(matchIndex + 1);
+                if (matchPaths.length && matchIndex < matchPaths.length-1) jumpToMatch(matchIndex+1);
                 updateMatchCounter();
             };
 
-            // 黑白名单按钮事件
+            // 黑白名单事件
             document.getElementById('addWhitelistBtn').onclick = addToWhitelist;
             document.getElementById('addBlacklistBtn').onclick = addToBlacklist;
             document.getElementById('toggleFilterModeBtn').onclick = toggleFilterMode;
             document.getElementById('clearFilterBtn').onclick = clearCurrentFilter;
 
-            // 初始渲染
+            // 初始化
             refreshUI();
+            updateJsonpathToggle();
         })();
     </script>
 </body>
