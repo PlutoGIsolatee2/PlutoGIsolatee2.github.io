@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 最终优化版</title>
+    <title>🍞 SugarCube 存档编辑器 · 优化版</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -27,6 +27,7 @@
     <!-- JSON lint 库 -->
     <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
+        /* 样式保持原样，仅添加loading遮罩 */
         * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
         body { background: #f4f3f0; padding: 1.5rem; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
         .editor-container { max-width: 1400px; width: 100%; background: #fefcf7; border-radius: 28px; box-shadow: 0 25px 40px -12px rgba(40,30,10,0.3); padding: 2rem 2rem 4rem 2rem; position: relative; }
@@ -41,7 +42,6 @@
         .simple-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
         .simple-cm-container { border:1px solid #c9b6a2; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:200px; }
         .simple-cm-container .CodeMirror { height:200px; font-family:'Monaco',monospace; font-size:0.85rem; }
-        /* 帮助按钮悬浮提示 */
         .help-icon {
             background: #cbb59e;
             border-radius: 50%;
@@ -116,44 +116,69 @@
         .btn-decode { background:#d3b59b; color:#2b1e14; }
         .toast-message { position:fixed; bottom:2rem; left:50%; transform:translateX(-50%); background:#2e241d; color:#f0e2d4; padding:0.8rem 2rem; border-radius:60px; font-size:0.95rem; box-shadow:0 8px 20px rgba(0,0,0,0.25); z-index:2000; opacity:0; animation:fadeinout 2s ease forwards; pointer-events:none; white-space:nowrap; }
         @keyframes fadeinout { 0%{opacity:0; transform:translateX(-50%) translateY(10px);} 15%{opacity:1; transform:translateX(-50%) translateY(0);} 85%{opacity:1; transform:translateX(-50%) translateY(0);} 100%{opacity:0; transform:translateX(-50%) translateY(-10px);} }
+        /* Loading 遮罩 */
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .loading-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+        .spinner {
+            width: 50px; height: 50px;
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #b87c5a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         @media (max-width:600px) { body{padding:0.8rem;} .editor-container{padding:1.2rem 1rem 5rem;} .float-buttons{right:1rem; bottom:1rem; gap:0.5rem;} .float-buttons .btn{width:3rem; height:3rem; font-size:1.2rem;} .toast-message{font-size:0.8rem; white-space:normal;} .json-tree{padding:1rem 0.8rem;} .tree-node{margin-left:1rem;} .tree-node ul{padding-left:1rem;} }
     </style>
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 最终优化版</h1>
+        <h1>🍞 SugarCube 存档 · 优化版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
-            <button class="btn" id="copyBase64Btn">复制</button>
-            <button class="btn" id="pasteBase64Btn">粘贴</button>
-            <span class="btn btn-file">
+            <button class="btn" id="copyBase64Btn" aria-label="复制Base64">复制</button>
+            <button class="btn" id="pasteBase64Btn" aria-label="粘贴Base64">粘贴</button>
+            <span class="btn btn-file" aria-label="选择文件">
                 选择文件
                 <input type="file" id="filePicker" accept="*/*">
             </span>
-            <button class="btn" id="downloadBase64Btn">下载txt</button>
+            <button class="btn" id="downloadBase64Btn" aria-label="下载为txt">下载txt</button>
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
 
         <!-- 搜索面板 -->
         <div class="search-panel">
             <div class="search-wrapper">
-                <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath (如 $.root.state)'>
-                <button class="jsonpath-toggle" id="jsonpathToggleBtn">$</button>
+                <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath (如 $.root.state)' aria-label="搜索关键词">
+                <button class="jsonpath-toggle" id="jsonpathToggleBtn" aria-label="切换搜索模式">$</button>
             </div>
-            <button class="search-btn" id="searchBtn">搜索</button>
-            <span class="match-indicator" id="matchCounter">0/0</span>
-            <button class="nav-arrow" id="prevMatchBtn">◀</button>
-            <button class="nav-arrow" id="nextMatchBtn">▶</button>
+            <button class="search-btn" id="searchBtn" aria-label="执行搜索">搜索</button>
+            <span class="match-indicator" id="matchCounter" aria-live="polite">0/0</span>
+            <button class="nav-arrow" id="prevMatchBtn" aria-label="上一个匹配项">◀</button>
+            <button class="nav-arrow" id="nextMatchBtn" aria-label="下一个匹配项">▶</button>
         </div>
 
         <!-- 黑白名单工具栏 -->
         <div class="filter-toolbar">
             <span class="filter-label">📌 添加当前节点到搜索</span>
-            <button class="filter-btn" id="addWhitelistBtn">⚪ 白名单</button>
-            <button class="filter-btn" id="addBlacklistBtn">⚫ 黑名单</button>
-            <button class="filter-btn mode-toggle" id="toggleFilterModeBtn">🔘 未启用</button>
-            <button class="filter-btn clear-btn" id="clearFilterBtn">🗑️ 清空当前启用名单</button>
+            <button class="filter-btn" id="addWhitelistBtn" aria-label="加入白名单">⚪ 白名单</button>
+            <button class="filter-btn" id="addBlacklistBtn" aria-label="加入黑名单">⚫ 黑名单</button>
+            <button class="filter-btn mode-toggle" id="toggleFilterModeBtn" aria-label="切换过滤模式">🔘 未启用</button>
+            <button class="filter-btn clear-btn" id="clearFilterBtn" aria-label="清空当前启用名单">🗑️ 清空当前启用名单</button>
         </div>
 
         <!-- 面包屑 -->
@@ -165,9 +190,9 @@
         <!-- 简单编辑面板 (新建/删除节点 + CodeMirror) 置于树下方 -->
         <div class="simple-edit-panel">
             <div class="simple-panel-buttons">
-                <button class="btn" id="newNodeBtn">➕ 新建节点</button>
-                <button class="btn" id="deleteNodeBtn">✖ 删除当前节点</button>
-                <span class="help-icon" id="newNodeHelp">?</span>
+                <button class="btn" id="newNodeBtn" aria-label="新建节点">➕ 新建节点</button>
+                <button class="btn" id="deleteNodeBtn" aria-label="删除当前节点">✖ 删除当前节点</button>
+                <span class="help-icon" id="newNodeHelp" aria-label="帮助说明" role="tooltip">?</span>
             </div>
             <div class="simple-cm-container">
                 <textarea id="simpleEditor" placeholder="输入合法 JSON 插入到当前节点下…"></textarea>
@@ -177,12 +202,12 @@
         <!-- 全量编辑面板 (CodeMirror) 置于简单面板下方 -->
         <div class="full-edit-panel">
             <div class="full-panel-buttons">
-                <button class="btn" id="editCurrentNodeBtn">✎ 编辑当前节点</button>
-                <button class="btn" id="pushNodeBtn">⏎ 推送修改</button>
-                <button class="btn" id="clearEditorBtn">🗑️ 清空编辑器</button>
-                <button class="btn" id="cmUndoBtn">↩ 撤销</button>
-                <button class="btn" id="cmRedoBtn">↪ 重做</button>
-                <button class="btn" id="cmFormatBtn">✨ 格式化</button>
+                <button class="btn" id="editCurrentNodeBtn" aria-label="编辑当前节点">✎ 编辑当前节点</button>
+                <button class="btn" id="pushNodeBtn" aria-label="推送修改">⏎ 推送修改</button>
+                <button class="btn" id="clearEditorBtn" aria-label="清空编辑器">🗑️ 清空编辑器</button>
+                <button class="btn" id="cmUndoBtn" aria-label="撤销编辑器修改">↩ 撤销</button>
+                <button class="btn" id="cmRedoBtn" aria-label="重做编辑器修改">↪ 重做</button>
+                <button class="btn" id="cmFormatBtn" aria-label="格式化JSON">✨ 格式化</button>
             </div>
             <div class="cm-editor-container">
                 <textarea id="nodeEditor" placeholder="当前节点的 JSON 表示..."></textarea>
@@ -191,11 +216,16 @@
 
         <!-- 悬浮按钮组 -->
         <div class="float-buttons">
-            <button class="btn btn-undo" id="undoBtn">↩</button>
-            <button class="btn btn-redo" id="redoBtn">↪</button>
-            <button class="btn btn-decode" id="decodeFloatBtn">解</button>
-            <button class="btn btn-encode" id="encodeFloatBtn">编</button>
+            <button class="btn btn-undo" id="undoBtn" aria-label="撤销树操作">↩</button>
+            <button class="btn btn-redo" id="redoBtn" aria-label="重做树操作">↪</button>
+            <button class="btn btn-decode" id="decodeFloatBtn" aria-label="解码Base64">解</button>
+            <button class="btn btn-encode" id="encodeFloatBtn" aria-label="编码为Base64">编</button>
         </div>
+    </div>
+
+    <!-- Loading 遮罩 -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
     </div>
 
     <script type="module">
@@ -230,6 +260,7 @@
         let blackListPaths = new Set();
         let filterMode = 'none';
 
+        // 节点类型映射（每次渲染前清空）
         let nodeTypeMap = new Map();
 
         // ----- CodeMirror 编辑器 -----
@@ -238,6 +269,30 @@
         let editorDirty = false;
         let simpleEditor;
 
+        // ----- Loading 控制 -----
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        function showLoading() { loadingOverlay.classList.add('active'); }
+        function hideLoading() { loadingOverlay.classList.remove('active'); }
+
+        // ----- 防抖函数 -----
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+
+        // ----- 安全修改：检查编辑器脏状态 -----
+        function safeModify(action) {
+            if (editorDirty && !confirm('编辑器中有未推送的更改，继续将丢失这些更改。确定？')) {
+                return false;
+            }
+            action();
+            return true;
+        }
+
+        // ----- 初始化 CodeMirror -----
         function initCodeMirrors() {
             const fullTextarea = document.getElementById('nodeEditor');
             cmEditor = CodeMirror.fromTextArea(fullTextarea, {
@@ -274,6 +329,7 @@
             });
         }
 
+        // ----- 格式化 -----
         function formatCode() {
             try {
                 const content = cmEditor.getValue();
@@ -283,6 +339,7 @@
             } catch (e) { showToast('格式化失败：不是有效的 JSON'); }
         }
 
+        // ----- 加载节点到全量编辑器 -----
         function loadNodeToEditor(path) {
             const nodeInfo = getNodeByPath(path);
             if (!nodeInfo || nodeInfo.value === undefined) { showToast('节点无效'); return false; }
@@ -295,14 +352,15 @@
             return true;
         }
 
+        // ----- 推送编辑器内容到树 -----
         function pushEditorToTree() {
             if (!currentEditPath) { showToast('没有正在编辑的节点'); return; }
             try {
                 const parsed = JSON.parse(cmEditor.getValue());
+                // 调用 modifyData，回调返回 true（实际修改）
                 modifyData(() => {
                     setValueByPath(currentEditPath, parsed);
-                    const prefix = JSON.stringify(currentEditPath);
-                    for (let key of nodeTypeMap.keys()) if (key.startsWith(prefix)) nodeTypeMap.delete(key);
+                    return true; // 表示已修改
                 });
                 editorDirty = false;
                 currentEditPath = null;
@@ -317,7 +375,7 @@
             return loadNodeToEditor(path);
         }
 
-        // ----- IndexedDB 管理 -----
+        // ----- IndexedDB 管理 (带防抖保存) -----
         const DB_NAME = 'SugarCubeEditorDB';
         const STORE_NAME = 'editorState';
         let db = null;
@@ -344,7 +402,7 @@
                 filterMode: filterMode,
                 historyStack: historyStack,
                 historyIndex: historyIndex,
-                nodeTypeMap: Array.from(nodeTypeMap.entries()),
+                // 不再保存 nodeTypeMap
                 expandedSet: Array.from(expandedSet),
                 currentPath: currentPath,
                 jsonpathMode: jsonpathMode,
@@ -357,6 +415,8 @@
             store.put(state, 'current');
             return tx.complete;
         }
+
+        const debouncedSave = debounce(saveStateToDB, 300);
 
         async function loadStateFromDB() {
             if (!db) return null;
@@ -409,7 +469,7 @@
                 filterMode = saved.filterMode || 'none';
                 historyStack = saved.historyStack || [];
                 historyIndex = saved.historyIndex !== undefined ? saved.historyIndex : -1;
-                nodeTypeMap = new Map(saved.nodeTypeMap || []);
+                // 忽略 nodeTypeMap
                 expandedSet = new Set(saved.expandedSet || []);
                 currentPath = saved.currentPath || ['root'];
                 jsonpathMode = saved.jsonpathMode || false;
@@ -421,8 +481,14 @@
             const editorSaved = await loadEditorStateFromDB();
             if (editorSaved && editorSaved.currentEditPath) {
                 currentEditPath = editorSaved.currentEditPath;
-                cmEditor.setValue(editorSaved.editorContent);
-                editorDirty = true;
+                // 验证节点是否存在
+                if (!getNodeByPath(currentEditPath).value) {
+                    // 节点已不存在，清空编辑器
+                    clearEditor();
+                } else {
+                    cmEditor.setValue(editorSaved.editorContent);
+                    editorDirty = true;
+                }
             }
             fullRender();
             updateJsonpathToggle();
@@ -453,8 +519,7 @@
         function cloneDeep(obj) { return JSON.parse(JSON.stringify(obj)); }
 
         function getNodeType(path, value) {
-            const pathStr = JSON.stringify(path);
-            if (nodeTypeMap.has(pathStr)) return nodeTypeMap.get(pathStr);
+            // 每次渲染前会清空 nodeTypeMap，所以这里重新计算
             if (value === null) return 'null';
             if (Array.isArray(value)) return 'array';
             if (typeof value === 'object') return 'object';
@@ -490,21 +555,24 @@
             setTimeout(() => toast.remove(), duration);
         }
 
+        // ----- 渲染核心 -----
         function fullRender() {
+            // 清空类型缓存
+            nodeTypeMap.clear();
             renderTree();
             renderBreadcrumb();
             updateMatchCounter();
             updateFilterUI();
             updateCurrentNodeHighlight();
             scrollCurrentNodeIntoView();
-            saveStateToDB();
+            debouncedSave(); // 防抖保存
         }
 
         function refreshLightUI() {
             renderBreadcrumb();
             updateMatchCounter();
             updateFilterUI();
-            saveStateToDB();
+            debouncedSave();
         }
 
         function setCurrentPath(path) {
@@ -513,7 +581,7 @@
             updateCurrentNodeHighlight();
             renderBreadcrumb();
             scrollCurrentNodeIntoView();
-            saveStateToDB();
+            debouncedSave();
         }
 
         function updateCurrentNodeHighlight() {
@@ -532,20 +600,40 @@
             historyStack.push(snapshot);
             if (historyStack.length > MAX_HISTORY) historyStack.shift();
             historyIndex = historyStack.length - 1;
-            saveStateToDB();
+            debouncedSave();
         }
 
         function undo() {
-            if (historyIndex > 0) { historyIndex--; rootWrapper = cloneDeep(historyStack[historyIndex]); fullRender(); saveStateToDB(); }
-            else showToast('没有上一步');
+            safeModify(() => {
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    rootWrapper = cloneDeep(historyStack[historyIndex]);
+                    fullRender();
+                } else {
+                    showToast('没有上一步');
+                }
+            });
         }
 
         function redo() {
-            if (historyIndex < historyStack.length - 1) { historyIndex++; rootWrapper = cloneDeep(historyStack[historyIndex]); fullRender(); saveStateToDB(); }
-            else showToast('没有下一步');
+            safeModify(() => {
+                if (historyIndex < historyStack.length - 1) {
+                    historyIndex++;
+                    rootWrapper = cloneDeep(historyStack[historyIndex]);
+                    fullRender();
+                } else {
+                    showToast('没有下一步');
+                }
+            });
         }
 
-        function modifyData(callback) { callback(); pushHistory(); fullRender(); }
+        function modifyData(callback) {
+            const changed = callback(); // 期待返回布尔值
+            if (changed) {
+                pushHistory();
+                fullRender();
+            }
+        }
 
         function renderTree() {
             const container = document.getElementById('jsonTree');
@@ -623,7 +711,7 @@
             return li;
         }
 
-        // 面包屑：显示为 $ / root / state ...
+        // 面包屑
         function renderBreadcrumb() {
             const bread = document.getElementById('breadcrumb');
             bread.innerHTML = '';
@@ -635,12 +723,12 @@
                 crumb.textContent = display;
                 crumb.dataset.path = JSON.stringify(currentPath.slice(0, i + 1));
                 crumb.onclick = (e) => {
-                    const p = JSON.parse(e.target.dataset.path);
-                    setCurrentPath(p);
-                    // 如果目标节点是容器，自动展开
-                    const nodeInfo = getNodeByPath(p);
+                    // 使用 currentTarget 确保获取的是 crumb 元素本身
+                    const path = JSON.parse(e.currentTarget.dataset.path);
+                    setCurrentPath(path);
+                    const nodeInfo = getNodeByPath(path);
                     if (nodeInfo.value && typeof nodeInfo.value === 'object') {
-                        expandedSet.add(JSON.stringify(p));
+                        expandedSet.add(JSON.stringify(path));
                     }
                 };
                 bread.appendChild(crumb);
@@ -658,50 +746,60 @@
             if (filterMode === 'blacklist') document.getElementById('addBlacklistBtn').classList.add('active');
         }
 
-        // 简单面板：新建节点（优化逻辑）
+        // 简单面板：新建节点
         document.getElementById('newNodeBtn').onclick = () => {
-            const raw = simpleEditor.getValue().trim();
-            if (!raw) return showToast('请输入 JSON');
-            let parsed;
-            try { parsed = JSON.parse(raw); } catch { return showToast('无效 JSON'); }
-            const nodeInfo = getNodeByPath(currentPath);
-            if (!nodeInfo || nodeInfo.value === undefined) return showToast('当前节点无效');
-            const target = nodeInfo.value;
-            if (!target || typeof target !== 'object') return showToast('只能在对象或数组下插入新节点');
+            safeModify(() => {
+                const raw = simpleEditor.getValue().trim();
+                if (!raw) { showToast('请输入 JSON'); return; }
+                let parsed;
+                try { parsed = JSON.parse(raw); } catch { showToast('无效 JSON'); return; }
+                const nodeInfo = getNodeByPath(currentPath);
+                if (!nodeInfo || nodeInfo.value === undefined) { showToast('当前节点无效'); return; }
+                const target = nodeInfo.value;
+                if (!target || typeof target !== 'object') { showToast('只能在对象或数组下插入新节点'); return; }
 
-            modifyData(() => {
-                if (Array.isArray(target)) {
-                    // 数组：无论输入什么，直接追加
-                    target.push(parsed);
-                } else {
-                    // 对象：只接受对象类型进行合并
-                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                        Object.assign(target, parsed);
+                modifyData(() => {
+                    let changed = false;
+                    if (Array.isArray(target)) {
+                        target.push(parsed);
+                        changed = true;
                     } else {
-                        // 非对象输入无效，提示但不修改
-                        showToast('向对象添加值需要提供键名，请使用对象格式');
-                        return; // 退出，不进行修改
+                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                            Object.assign(target, parsed);
+                            changed = true;
+                        } else {
+                            showToast('向对象添加值需要提供键名，请使用对象格式');
+                        }
                     }
+                    if (changed) expandedSet.add(JSON.stringify(currentPath));
+                    return changed;
+                });
+                if (nodeInfo.value && typeof nodeInfo.value === 'object') {
+                    // 如果成功，清空简单编辑器
+                    simpleEditor.setValue('');
                 }
-                expandedSet.add(JSON.stringify(currentPath));
             });
-            simpleEditor.setValue('');
         };
 
         document.getElementById('deleteNodeBtn').onclick = () => {
-            if (arrayEquals(currentPath, ['root'])) return showToast('不能删除根节点');
-            if (editorDirty && currentEditPath && arrayEquals(currentEditPath, currentPath) && !confirm('节点正在编辑且未推送，确定删除？')) return;
-            modifyData(() => {
-                const { parent, key } = getNodeByPath(currentPath);
-                if (parent && key !== null) {
-                    if (Array.isArray(parent)) parent.splice(Number(key), 1);
-                    else delete parent[key];
-                }
+            if (arrayEquals(currentPath, ['root'])) { showToast('不能删除根节点'); return; }
+            safeModify(() => {
+                modifyData(() => {
+                    const { parent, key } = getNodeByPath(currentPath);
+                    if (parent && key !== null) {
+                        if (Array.isArray(parent)) {
+                            parent.splice(Number(key), 1);
+                        } else {
+                            delete parent[key];
+                        }
+                        return true;
+                    }
+                    return false;
+                });
             });
         };
 
-        // 帮助按钮改用CSS悬浮提示，无需绑定事件
-        // document.getElementById('newNodeHelp').onclick = ... 已移除
+        // 帮助按钮改用CSS悬浮提示，无需事件
 
         document.getElementById('editCurrentNodeBtn').onclick = () => tryEditNode(currentPath);
         document.getElementById('pushNodeBtn').onclick = pushEditorToTree;
@@ -721,47 +819,60 @@
             if (lastSearchTerm) search(lastSearchTerm);
         };
 
-        // ----- 搜索核心 -----
+        // ----- 搜索核心 (带 loading 和实时搜索) -----
+        function performSearch() {
+            lastSearchTerm = document.getElementById('searchInput').value;
+            search(lastSearchTerm);
+        }
+        const debouncedSearch = debounce(performSearch, 300);
+        document.getElementById('searchInput').addEventListener('input', debouncedSearch);
+        document.getElementById('searchBtn').onclick = performSearch;
+
         function search(term) {
-            if (!term.trim()) { matchPaths = []; matchIndex = -1; fullRender(); return; }
-            let matches = [];
-            if (jsonpathMode) {
-                try {
-                    const pointers = JSONPath({ path: term, json: rootWrapper, resultType: 'pointer', preventEval: true });
-                    matches = pointers.map(p => {
-                        let parts = p.slice(1).split('/').map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'));
-                        return parts;
-                    });
-                } catch (e) { showToast('JSONPath 错误: ' + e.message); }
-            } else {
-                const lowerTerm = term.toLowerCase();
-                function traverse(obj, path) {
-                    if (!obj || typeof obj !== 'object') return;
-                    if (Array.isArray(obj)) {
-                        obj.forEach((item, idx) => {
-                            const curPath = path.concat(idx.toString());
-                            if (!isPathAllowed(curPath)) return;
-                            if (idx.toString().toLowerCase().includes(lowerTerm)) matches.push(curPath);
-                            if (item && typeof item === 'object') traverse(item, curPath);
-                            else if (String(item).toLowerCase().includes(lowerTerm)) matches.push(curPath);
+            showLoading();
+            try {
+                if (!term.trim()) { matchPaths = []; matchIndex = -1; fullRender(); return; }
+                let matches = [];
+                if (jsonpathMode) {
+                    try {
+                        const pointers = JSONPath({ path: term, json: rootWrapper, resultType: 'pointer', preventEval: true });
+                        matches = pointers.map(p => {
+                            let parts = p.slice(1).split('/').map(part => part.replace(/~1/g, '/').replace(/~0/g, '~'));
+                            return parts;
                         });
-                    } else {
-                        Object.entries(obj).forEach(([k, v]) => {
-                            const curPath = path.concat(k);
-                            if (!isPathAllowed(curPath)) return;
-                            if (k.toLowerCase().includes(lowerTerm)) matches.push(curPath);
-                            if (v && typeof v === 'object') traverse(v, curPath);
-                            else if (String(v).toLowerCase().includes(lowerTerm)) matches.push(curPath);
-                        });
+                    } catch (e) { showToast('JSONPath 错误: ' + e.message); }
+                } else {
+                    const lowerTerm = term.toLowerCase();
+                    function traverse(obj, path) {
+                        if (!obj || typeof obj !== 'object') return;
+                        if (Array.isArray(obj)) {
+                            obj.forEach((item, idx) => {
+                                const curPath = path.concat(idx.toString());
+                                if (!isPathAllowed(curPath)) return;
+                                if (idx.toString().toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                                if (item && typeof item === 'object') traverse(item, curPath);
+                                else if (String(item).toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                            });
+                        } else {
+                            Object.entries(obj).forEach(([k, v]) => {
+                                const curPath = path.concat(k);
+                                if (!isPathAllowed(curPath)) return;
+                                if (k.toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                                if (v && typeof v === 'object') traverse(v, curPath);
+                                else if (String(v).toLowerCase().includes(lowerTerm)) matches.push(curPath);
+                            });
+                        }
                     }
+                    traverse(rootWrapper.root, ['root']);
                 }
-                traverse(rootWrapper.root, ['root']);
+                matchPaths = matches;
+                matchIndex = matchPaths.length > 0 ? 0 : -1;
+                if (matchIndex >= 0) jumpToMatch(matchIndex);
+                else fullRender();
+                updateMatchCounter();
+            } finally {
+                hideLoading();
             }
-            matchPaths = matches;
-            matchIndex = matchPaths.length > 0 ? 0 : -1;
-            if (matchIndex >= 0) jumpToMatch(matchIndex);
-            else fullRender();
-            updateMatchCounter();
         }
 
         function jumpToMatch(idx) {
@@ -801,9 +912,21 @@
             }
         }
 
-        // 黑白名单操作
-        function addToWhitelist() { const p = JSON.stringify(currentPath); blackListPaths.delete(p); whiteListPaths.add(p); showToast('已添加白名单'); updateFilterUI(); saveStateToDB(); }
-        function addToBlacklist() { const p = JSON.stringify(currentPath); whiteListPaths.delete(p); blackListPaths.add(p); showToast('已添加黑名单'); updateFilterUI(); saveStateToDB(); }
+        // 黑白名单操作（添加后自动搜索）
+        function addToWhitelist() {
+            const p = JSON.stringify(currentPath);
+            blackListPaths.delete(p); whiteListPaths.add(p);
+            showToast('已添加白名单');
+            updateFilterUI(); debouncedSave();
+            if (lastSearchTerm) search(lastSearchTerm);
+        }
+        function addToBlacklist() {
+            const p = JSON.stringify(currentPath);
+            whiteListPaths.delete(p); blackListPaths.add(p);
+            showToast('已添加黑名单');
+            updateFilterUI(); debouncedSave();
+            if (lastSearchTerm) search(lastSearchTerm);
+        }
         function toggleFilterMode() {
             filterMode = filterMode === 'none' ? 'whitelist' : filterMode === 'whitelist' ? 'blacklist' : 'none';
             showToast(`过滤模式: ${filterMode}`);
@@ -818,29 +941,36 @@
             if (lastSearchTerm) search(lastSearchTerm); else fullRender();
         }
 
-        // 解码/编码
+        // 解码/编码（加入 safeModify）
         function decodeFromBase64() {
-            const base64 = document.getElementById('base64Input').value.trim();
-            if (!base64) return showToast('Base64 为空');
-            try {
-                const decoded = decodeSugarCubeSave(base64);
-                modifyData(() => {
-                    rootWrapper = { root: decoded };
-                    expandedSet.clear(); whiteListPaths.clear(); blackListPaths.clear(); filterMode = 'none';
-                    currentPath = ['root']; nodeTypeMap.clear();
-                });
-                showToast('解码成功');
-            } catch (e) { showToast('解码失败: ' + e.message); }
+            safeModify(() => {
+                const base64 = document.getElementById('base64Input').value.trim();
+                if (!base64) { showToast('Base64 为空'); return; }
+                try {
+                    const decoded = decodeSugarCubeSave(base64);
+                    modifyData(() => {
+                        rootWrapper = { root: decoded };
+                        expandedSet.clear(); whiteListPaths.clear(); blackListPaths.clear(); filterMode = 'none';
+                        currentPath = ['root'];
+                        // nodeTypeMap 将在 fullRender 中清空
+                        return true;
+                    });
+                    showToast('解码成功');
+                } catch (e) { showToast('解码失败: ' + e.message); }
+            });
         }
 
         function encodeAndCopy() {
-            try {
-                const base64 = encodeSugarCubeSave(rootWrapper.root);
-                document.getElementById('base64Input').value = base64;
-                navigator.clipboard.writeText(base64).then(() => showToast('编码已复制')).catch(() => showToast('编码成功，但复制失败'));
-            } catch (e) { showToast('编码失败: ' + e.message); }
+            safeModify(() => {
+                try {
+                    const base64 = encodeSugarCubeSave(rootWrapper.root);
+                    document.getElementById('base64Input').value = base64;
+                    navigator.clipboard.writeText(base64).then(() => showToast('编码已复制')).catch(() => showToast('编码成功，但复制失败'));
+                } catch (e) { showToast('编码失败: ' + e.message); }
+            });
         }
 
+        // 事件绑定（略）
         document.getElementById('pasteBase64Btn').onclick = () => {
             navigator.clipboard.readText().then(text => { document.getElementById('base64Input').value = text; decodeFromBase64(); })
                 .catch(() => showToast('无法读取剪贴板'));
@@ -857,7 +987,7 @@
         };
         document.getElementById('downloadBase64Btn').onclick = () => {
             const val = document.getElementById('base64Input').value;
-            if (!val) return showToast('无内容');
+            if (!val) { showToast('无内容'); return; }
             const blob = new Blob([val], {type: 'text/plain'});
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
@@ -870,10 +1000,6 @@
         document.getElementById('redoBtn').onclick = redo;
         document.getElementById('decodeFloatBtn').onclick = decodeFromBase64;
         document.getElementById('encodeFloatBtn').onclick = encodeAndCopy;
-        document.getElementById('searchBtn').onclick = () => {
-            lastSearchTerm = document.getElementById('searchInput').value;
-            search(lastSearchTerm);
-        };
         document.getElementById('prevMatchBtn').onclick = () => {
             if (matchPaths.length && matchIndex > 0) jumpToMatch(matchIndex-1);
             updateMatchCounter();
