@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · 优化版</title>
+    <title>🍞 SugarCube 存档编辑器 · 最终优化版</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -27,7 +27,6 @@
     <!-- JSON lint 库 -->
     <script src="https://cdn.jsdelivr.net/npm/jsonlint@1.6.3/lib/jsonlint.min.js"></script>
     <style>
-        /* 样式保持原样，仅添加loading遮罩 */
         * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
         body { background: #f4f3f0; padding: 1.5rem; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
         .editor-container { max-width: 1400px; width: 100%; background: #fefcf7; border-radius: 28px; box-shadow: 0 25px 40px -12px rgba(40,30,10,0.3); padding: 2rem 2rem 4rem 2rem; position: relative; }
@@ -56,7 +55,7 @@
             position: relative;
         }
         .help-icon:hover::after {
-            content: "当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效";
+            content: "当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效\A黑白名单会影响该节点及其所有子节点";
             white-space: pre;
             position: absolute;
             bottom: 150%;
@@ -146,7 +145,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档 · 优化版</h1>
+        <h1>🍞 SugarCube 存档 · 最终优化版</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -229,6 +228,12 @@
     </div>
 
     <script type="module">
+        // 检查 LZString 是否加载
+        if (typeof LZString === 'undefined') {
+            alert('错误: lz-string 库未加载，请刷新页面或检查网络。编辑器部分功能将不可用。');
+            throw new Error('LZString not loaded');
+        }
+
         import { JSONPath } from 'https://cdn.jsdelivr.net/npm/jsonpath-plus@10.4.0/dist/index-browser-esm.min.js';
 
         // ----- 核心编解码 -----
@@ -260,19 +265,23 @@
         let blackListPaths = new Set();
         let filterMode = 'none';
 
-        // 节点类型映射（每次渲染前清空）
-        let nodeTypeMap = new Map();
-
         // ----- CodeMirror 编辑器 -----
         let cmEditor;
         let currentEditPath = null;
         let editorDirty = false;
         let simpleEditor;
 
-        // ----- Loading 控制 -----
+        // ----- Loading 控制（计数器防止并发问题）-----
         const loadingOverlay = document.getElementById('loadingOverlay');
-        function showLoading() { loadingOverlay.classList.add('active'); }
-        function hideLoading() { loadingOverlay.classList.remove('active'); }
+        let loadingCounter = 0;
+        function showLoading() {
+            loadingCounter++;
+            if (loadingCounter === 1) loadingOverlay.classList.add('active');
+        }
+        function hideLoading() {
+            loadingCounter--;
+            if (loadingCounter === 0) loadingOverlay.classList.remove('active');
+        }
 
         // ----- 防抖函数 -----
         function debounce(func, wait) {
@@ -283,13 +292,12 @@
             };
         }
 
-        // ----- 安全修改：检查编辑器脏状态 -----
-        function safeModify(action) {
+        // ----- 安全修改：检查编辑器脏状态，并执行修改 -----
+        function modifyDataSafely(callback) {
             if (editorDirty && !confirm('编辑器中有未推送的更改，继续将丢失这些更改。确定？')) {
                 return false;
             }
-            action();
-            return true;
+            return modifyData(callback);
         }
 
         // ----- 初始化 CodeMirror -----
@@ -357,14 +365,13 @@
             if (!currentEditPath) { showToast('没有正在编辑的节点'); return; }
             try {
                 const parsed = JSON.parse(cmEditor.getValue());
-                // 调用 modifyData，回调返回 true（实际修改）
-                modifyData(() => {
+                modifyDataSafely(() => {
                     setValueByPath(currentEditPath, parsed);
-                    return true; // 表示已修改
+                    editorDirty = false;
+                    currentEditPath = null;
+                    clearEditorStateInDB();
+                    return true;
                 });
-                editorDirty = false;
-                currentEditPath = null;
-                clearEditorStateInDB();
             } catch (e) { showToast('JSON 格式错误: ' + e.message); }
         }
 
@@ -402,7 +409,6 @@
                 filterMode: filterMode,
                 historyStack: historyStack,
                 historyIndex: historyIndex,
-                // 不再保存 nodeTypeMap
                 expandedSet: Array.from(expandedSet),
                 currentPath: currentPath,
                 jsonpathMode: jsonpathMode,
@@ -458,6 +464,18 @@
             store.delete('editor');
         }
 
+        // 页面关闭前尝试保存
+        window.addEventListener('beforeunload', () => {
+            // 同步保存无法保证完成，但尝试
+            if (db) saveStateToDB();
+        });
+        // 页面隐藏时保存
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden') {
+                if (db) saveStateToDB();
+            }
+        });
+
         // 初始化DB并加载
         openDB().then(async () => {
             const saved = await loadStateFromDB();
@@ -469,7 +487,6 @@
                 filterMode = saved.filterMode || 'none';
                 historyStack = saved.historyStack || [];
                 historyIndex = saved.historyIndex !== undefined ? saved.historyIndex : -1;
-                // 忽略 nodeTypeMap
                 expandedSet = new Set(saved.expandedSet || []);
                 currentPath = saved.currentPath || ['root'];
                 jsonpathMode = saved.jsonpathMode || false;
@@ -483,7 +500,6 @@
                 currentEditPath = editorSaved.currentEditPath;
                 // 验证节点是否存在
                 if (!getNodeByPath(currentEditPath).value) {
-                    // 节点已不存在，清空编辑器
                     clearEditor();
                 } else {
                     cmEditor.setValue(editorSaved.editorContent);
@@ -518,8 +534,8 @@
         function arrayEquals(a, b) { return a.length === b.length && a.every((v,i)=> v===b[i]); }
         function cloneDeep(obj) { return JSON.parse(JSON.stringify(obj)); }
 
-        function getNodeType(path, value) {
-            // 每次渲染前会清空 nodeTypeMap，所以这里重新计算
+        // 获取节点类型（用于显示，无缓存）
+        function getNodeType(value) {
             if (value === null) return 'null';
             if (Array.isArray(value)) return 'array';
             if (typeof value === 'object') return 'object';
@@ -557,8 +573,6 @@
 
         // ----- 渲染核心 -----
         function fullRender() {
-            // 清空类型缓存
-            nodeTypeMap.clear();
             renderTree();
             renderBreadcrumb();
             updateMatchCounter();
@@ -604,25 +618,29 @@
         }
 
         function undo() {
-            safeModify(() => {
+            modifyDataSafely(() => {
                 if (historyIndex > 0) {
                     historyIndex--;
                     rootWrapper = cloneDeep(historyStack[historyIndex]);
                     fullRender();
+                    return true;
                 } else {
                     showToast('没有上一步');
+                    return false;
                 }
             });
         }
 
         function redo() {
-            safeModify(() => {
+            modifyDataSafely(() => {
                 if (historyIndex < historyStack.length - 1) {
                     historyIndex++;
                     rootWrapper = cloneDeep(historyStack[historyIndex]);
                     fullRender();
+                    return true;
                 } else {
                     showToast('没有下一步');
+                    return false;
                 }
             });
         }
@@ -632,7 +650,12 @@
             if (changed) {
                 pushHistory();
                 fullRender();
+            } else {
+                // 即使未修改，也可能有 UI 状态变化需要保存（如 expandedSet 在回调外可能已变，但这里不处理，由 setCurrentPath 等单独保存）
+                // 为了安全，调用一次保存（debounced 合并）
+                debouncedSave();
             }
+            return changed;
         }
 
         function renderTree() {
@@ -672,7 +695,7 @@
             row.appendChild(document.createElement('span')).className = 'colon';
             row.lastChild.textContent = ':';
 
-            const currentType = getNodeType(path, value);
+            const currentType = getNodeType(value);
             const typeBadge = document.createElement('span');
             typeBadge.className = 'type-badge';
             typeBadge.textContent = currentType;
@@ -723,7 +746,6 @@
                 crumb.textContent = display;
                 crumb.dataset.path = JSON.stringify(currentPath.slice(0, i + 1));
                 crumb.onclick = (e) => {
-                    // 使用 currentTarget 确保获取的是 crumb 元素本身
                     const path = JSON.parse(e.currentTarget.dataset.path);
                     setCurrentPath(path);
                     const nodeInfo = getNodeByPath(path);
@@ -747,77 +769,73 @@
         }
 
         // 简单面板：新建节点
-        document.getElementById('newNodeBtn').onclick = () => {
-            safeModify(() => {
+        document.getElementById('newNodeBtn').addEventListener('click', () => {
+            modifyDataSafely(() => {
                 const raw = simpleEditor.getValue().trim();
-                if (!raw) { showToast('请输入 JSON'); return; }
+                if (!raw) { showToast('请输入 JSON'); return false; }
                 let parsed;
-                try { parsed = JSON.parse(raw); } catch { showToast('无效 JSON'); return; }
+                try { parsed = JSON.parse(raw); } catch { showToast('无效 JSON'); return false; }
                 const nodeInfo = getNodeByPath(currentPath);
-                if (!nodeInfo || nodeInfo.value === undefined) { showToast('当前节点无效'); return; }
+                if (!nodeInfo || nodeInfo.value === undefined) { showToast('当前节点无效'); return false; }
                 const target = nodeInfo.value;
-                if (!target || typeof target !== 'object') { showToast('只能在对象或数组下插入新节点'); return; }
+                if (!target || typeof target !== 'object') { showToast('只能在对象或数组下插入新节点'); return false; }
 
-                modifyData(() => {
-                    let changed = false;
-                    if (Array.isArray(target)) {
-                        target.push(parsed);
+                let changed = false;
+                if (Array.isArray(target)) {
+                    target.push(parsed);
+                    changed = true;
+                } else {
+                    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                        Object.assign(target, parsed);
                         changed = true;
                     } else {
-                        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-                            Object.assign(target, parsed);
-                            changed = true;
-                        } else {
-                            showToast('向对象添加值需要提供键名，请使用对象格式');
-                        }
+                        showToast('向对象添加值需要提供键名，请使用对象格式');
+                        return false;
                     }
-                    if (changed) expandedSet.add(JSON.stringify(currentPath));
-                    return changed;
-                });
-                if (nodeInfo.value && typeof nodeInfo.value === 'object') {
-                    // 如果成功，清空简单编辑器
-                    simpleEditor.setValue('');
                 }
+                if (changed) {
+                    expandedSet.add(JSON.stringify(currentPath));
+                    simpleEditor.setValue(''); // 成功时清空
+                }
+                return changed;
             });
-        };
+        });
 
-        document.getElementById('deleteNodeBtn').onclick = () => {
+        document.getElementById('deleteNodeBtn').addEventListener('click', () => {
             if (arrayEquals(currentPath, ['root'])) { showToast('不能删除根节点'); return; }
-            safeModify(() => {
-                modifyData(() => {
-                    const { parent, key } = getNodeByPath(currentPath);
-                    if (parent && key !== null) {
-                        if (Array.isArray(parent)) {
-                            parent.splice(Number(key), 1);
-                        } else {
-                            delete parent[key];
-                        }
-                        return true;
+            modifyDataSafely(() => {
+                const { parent, key } = getNodeByPath(currentPath);
+                if (parent && key !== null) {
+                    if (Array.isArray(parent)) {
+                        parent.splice(Number(key), 1);
+                    } else {
+                        delete parent[key];
                     }
-                    return false;
-                });
+                    return true;
+                }
+                return false;
             });
-        };
+        });
 
         // 帮助按钮改用CSS悬浮提示，无需事件
 
-        document.getElementById('editCurrentNodeBtn').onclick = () => tryEditNode(currentPath);
-        document.getElementById('pushNodeBtn').onclick = pushEditorToTree;
-        document.getElementById('clearEditorBtn').onclick = () => { if (!editorDirty || confirm('确定清空？未推送更改将丢失')) clearEditor(); };
-        document.getElementById('cmUndoBtn').onclick = () => cmEditor.undo();
-        document.getElementById('cmRedoBtn').onclick = () => cmEditor.redo();
-        document.getElementById('cmFormatBtn').onclick = formatCode;
+        document.getElementById('editCurrentNodeBtn').addEventListener('click', () => tryEditNode(currentPath));
+        document.getElementById('pushNodeBtn').addEventListener('click', pushEditorToTree);
+        document.getElementById('clearEditorBtn').addEventListener('click', () => { if (!editorDirty || confirm('确定清空？未推送更改将丢失')) clearEditor(); });
+        document.getElementById('cmUndoBtn').addEventListener('click', () => cmEditor.undo());
+        document.getElementById('cmRedoBtn').addEventListener('click', () => cmEditor.redo());
+        document.getElementById('cmFormatBtn').addEventListener('click', formatCode);
 
         function updateJsonpathToggle() {
             const btn = document.getElementById('jsonpathToggleBtn');
             btn.textContent = '$';
             btn.classList.toggle('active', jsonpathMode);
         }
-        document.getElementById('jsonpathToggleBtn').onclick = () => {
+        document.getElementById('jsonpathToggleBtn').addEventListener('click', () => {
             jsonpathMode = !jsonpathMode;
             updateJsonpathToggle();
             if (lastSearchTerm) search(lastSearchTerm);
-        };
+        });
 
         // ----- 搜索核心 (带 loading 和实时搜索) -----
         function performSearch() {
@@ -826,7 +844,7 @@
         }
         const debouncedSearch = debounce(performSearch, 300);
         document.getElementById('searchInput').addEventListener('input', debouncedSearch);
-        document.getElementById('searchBtn').onclick = performSearch;
+        document.getElementById('searchBtn').addEventListener('click', performSearch);
 
         function search(term) {
             showLoading();
@@ -934,47 +952,64 @@
             if (lastSearchTerm) search(lastSearchTerm);
         }
         function clearCurrentFilter() {
-            if (filterMode === 'whitelist') whiteListPaths.clear();
-            else if (filterMode === 'blacklist') blackListPaths.clear();
-            else { whiteListPaths.clear(); blackListPaths.clear(); }
-            showToast('名单已清空');
+            if (filterMode === 'whitelist') {
+                whiteListPaths.clear();
+                showToast('白名单已清空');
+            } else if (filterMode === 'blacklist') {
+                blackListPaths.clear();
+                showToast('黑名单已清空');
+            } else {
+                // none 模式下清空全部（或提示无操作）
+                if (whiteListPaths.size === 0 && blackListPaths.size === 0) {
+                    showToast('没有启用的名单');
+                } else {
+                    whiteListPaths.clear();
+                    blackListPaths.clear();
+                    showToast('已清空所有名单');
+                }
+            }
             if (lastSearchTerm) search(lastSearchTerm); else fullRender();
         }
 
-        // 解码/编码（加入 safeModify）
+        // 解码/编码（加入 modifyDataSafely）
         function decodeFromBase64() {
-            safeModify(() => {
+            modifyDataSafely(() => {
                 const base64 = document.getElementById('base64Input').value.trim();
-                if (!base64) { showToast('Base64 为空'); return; }
+                if (!base64) { showToast('Base64 为空'); return false; }
                 try {
                     const decoded = decodeSugarCubeSave(base64);
-                    modifyData(() => {
-                        rootWrapper = { root: decoded };
-                        expandedSet.clear(); whiteListPaths.clear(); blackListPaths.clear(); filterMode = 'none';
-                        currentPath = ['root'];
-                        // nodeTypeMap 将在 fullRender 中清空
-                        return true;
-                    });
+                    rootWrapper = { root: decoded };
+                    expandedSet.clear(); whiteListPaths.clear(); blackListPaths.clear(); filterMode = 'none';
+                    currentPath = ['root'];
+                    // 重置搜索状态
+                    matchPaths = [];
+                    matchIndex = -1;
+                    lastSearchTerm = '';
+                    document.getElementById('searchInput').value = '';
+                    updateMatchCounter();
                     showToast('解码成功');
-                } catch (e) { showToast('解码失败: ' + e.message); }
+                    return true;
+                } catch (e) { showToast('解码失败: ' + e.message); return false; }
             });
         }
 
         function encodeAndCopy() {
-            safeModify(() => {
+            modifyDataSafely(() => {
                 try {
                     const base64 = encodeSugarCubeSave(rootWrapper.root);
                     document.getElementById('base64Input').value = base64;
+                    debouncedSave(); // 保存新 Base64
                     navigator.clipboard.writeText(base64).then(() => showToast('编码已复制')).catch(() => showToast('编码成功，但复制失败'));
-                } catch (e) { showToast('编码失败: ' + e.message); }
+                    return true;
+                } catch (e) { showToast('编码失败: ' + e.message); return false; }
             });
         }
 
-        // 事件绑定（略）
-        document.getElementById('pasteBase64Btn').onclick = () => {
+        // 事件绑定全部改为 addEventListener
+        document.getElementById('pasteBase64Btn').addEventListener('click', () => {
             navigator.clipboard.readText().then(text => { document.getElementById('base64Input').value = text; decodeFromBase64(); })
                 .catch(() => showToast('无法读取剪贴板'));
-        };
+        });
         document.getElementById('filePicker').addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
@@ -982,10 +1017,10 @@
             reader.onload = (ev) => { document.getElementById('base64Input').value = ev.target.result; decodeFromBase64(); };
             reader.readAsText(file);
         });
-        document.getElementById('copyBase64Btn').onclick = () => {
+        document.getElementById('copyBase64Btn').addEventListener('click', () => {
             navigator.clipboard.writeText(document.getElementById('base64Input').value).then(() => showToast('已复制')).catch(() => showToast('复制失败'));
-        };
-        document.getElementById('downloadBase64Btn').onclick = () => {
+        });
+        document.getElementById('downloadBase64Btn').addEventListener('click', () => {
             const val = document.getElementById('base64Input').value;
             if (!val) { showToast('无内容'); return; }
             const blob = new Blob([val], {type: 'text/plain'});
@@ -994,25 +1029,25 @@
             a.download = 'sugarcube_save.txt';
             a.click();
             URL.revokeObjectURL(a.href);
-        };
+        });
 
-        document.getElementById('undoBtn').onclick = undo;
-        document.getElementById('redoBtn').onclick = redo;
-        document.getElementById('decodeFloatBtn').onclick = decodeFromBase64;
-        document.getElementById('encodeFloatBtn').onclick = encodeAndCopy;
-        document.getElementById('prevMatchBtn').onclick = () => {
+        document.getElementById('undoBtn').addEventListener('click', undo);
+        document.getElementById('redoBtn').addEventListener('click', redo);
+        document.getElementById('decodeFloatBtn').addEventListener('click', decodeFromBase64);
+        document.getElementById('encodeFloatBtn').addEventListener('click', encodeAndCopy);
+        document.getElementById('prevMatchBtn').addEventListener('click', () => {
             if (matchPaths.length && matchIndex > 0) jumpToMatch(matchIndex-1);
             updateMatchCounter();
-        };
-        document.getElementById('nextMatchBtn').onclick = () => {
+        });
+        document.getElementById('nextMatchBtn').addEventListener('click', () => {
             if (matchPaths.length && matchIndex < matchPaths.length-1) jumpToMatch(matchIndex+1);
             updateMatchCounter();
-        };
+        });
 
-        document.getElementById('addWhitelistBtn').onclick = addToWhitelist;
-        document.getElementById('addBlacklistBtn').onclick = addToBlacklist;
-        document.getElementById('toggleFilterModeBtn').onclick = toggleFilterMode;
-        document.getElementById('clearFilterBtn').onclick = clearCurrentFilter;
+        document.getElementById('addWhitelistBtn').addEventListener('click', addToWhitelist);
+        document.getElementById('addBlacklistBtn').addEventListener('click', addToBlacklist);
+        document.getElementById('toggleFilterModeBtn').addEventListener('click', toggleFilterMode);
+        document.getElementById('clearFilterBtn').addEventListener('click', clearCurrentFilter);
     </script>
 </body>
 </html>
