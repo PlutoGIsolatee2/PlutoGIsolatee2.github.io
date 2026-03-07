@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · v0.2603.1</title>
+    <title>🍞 SugarCube 存档编辑器 · v0.2603.2</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -55,7 +55,7 @@
             position: relative;
         }
         .help-icon:hover::after {
-            content: "普通搜索受黑白名单影响；JSONPath 模式不受黑白名单影响，表达式以 $.root 开头访问存档内容。\A当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效";
+            content: "普通搜索受黑白名单影响；JSONPath 模式不受黑白名单影响，表达式以 $.root 开头访问存档内容。\A搜索框支持实时搜索（输入后自动搜索）。\A当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效";
             white-space: pre;
             position: absolute;
             bottom: 150%;
@@ -69,7 +69,7 @@
             font-weight: normal;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
             z-index: 100;
-            width: 280px;
+            width: 300px;
             text-align: left;
             pointer-events: none;
             line-height: 1.5;
@@ -144,7 +144,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档编辑器 · v0.2603.1</h1>
+        <h1>🍞 SugarCube 存档编辑器 · v0.2603.2</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -164,6 +164,7 @@
                 <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath (如 $.root.state)' aria-label="搜索关键词">
                 <button class="jsonpath-toggle" id="jsonpathToggleBtn" aria-label="切换搜索模式">$</button>
             </div>
+            <!-- 保留搜索按钮，但帮助提示已说明实时搜索 -->
             <button class="search-btn" id="searchBtn" aria-label="执行搜索">搜索</button>
             <span class="match-indicator" id="matchCounter" aria-live="polite">0/0</span>
             <button class="nav-arrow" id="prevMatchBtn" aria-label="上一个匹配项">◀</button>
@@ -358,12 +359,12 @@
             } catch (e) { showToast('格式化失败：不是有效的 JSON'); }
         }
 
-        // ----- 加载节点到全量编辑器 -----
+        // ----- 加载节点到全量编辑器 (阈值提高至2MB) -----
         function loadNodeToEditor(path) {
             const nodeInfo = getNodeByPath(path);
             if (!nodeInfo || nodeInfo.value === undefined) { showToast('节点无效'); return false; }
             const jsonStr = JSON.stringify(nodeInfo.value, null, 2);
-            if (jsonStr.length > 500 * 1024 && !confirm('节点超过500KB，确定继续？')) return false;
+            if (jsonStr.length > 2 * 1024 * 1024 && !confirm('节点超过2MB，加载可能导致性能问题，确定继续？')) return false;
             cmEditor.setValue(jsonStr);
             currentEditPath = path.slice();
             editorDirty = false;
@@ -396,7 +397,7 @@
             return loadNodeToEditor(path);
         }
 
-        // ----- IndexedDB 管理 (带防抖保存) -----
+        // ----- IndexedDB 管理 (带防抖保存，但不再保存搜索状态) -----
         const DB_NAME = 'SugarCubeEditorDB';
         const STORE_NAME = 'editorState';
         let db = null;
@@ -426,9 +427,7 @@
                 expandedSet: Array.from(expandedSet),
                 currentPath: currentPath,
                 jsonpathMode: jsonpathMode,
-                lastSearchTerm: lastSearchTerm,
-                matchPaths: matchPaths,
-                matchIndex: matchIndex,
+                // 不再保存搜索状态
             };
             const tx = db.transaction(STORE_NAME, 'readwrite');
             const store = tx.objectStore(STORE_NAME);
@@ -502,9 +501,19 @@
                 expandedSet = new Set(saved.expandedSet || []);
                 currentPath = saved.currentPath || ['root'];
                 jsonpathMode = saved.jsonpathMode || false;
-                lastSearchTerm = saved.lastSearchTerm || '';
-                matchPaths = saved.matchPaths || [];
-                matchIndex = saved.matchIndex !== undefined ? saved.matchIndex : -1;
+                // 不恢复搜索状态
+                lastSearchTerm = '';
+                matchPaths = [];
+                matchIndex = -1;
+                document.getElementById('searchInput').value = '';
+                updateMatchCounter();
+            } else {
+                // 确保搜索状态初始为空
+                lastSearchTerm = '';
+                matchPaths = [];
+                matchIndex = -1;
+                document.getElementById('searchInput').value = '';
+                updateMatchCounter();
             }
             initCodeMirrors();
             const editorSaved = await loadEditorStateFromDB();
@@ -544,7 +553,6 @@
 
         function arrayEquals(a, b) { return a.length === b.length && a.every((v,i)=> v===b[i]); }
 
-        // 获取节点类型（用于显示）
         function getNodeType(value) {
             if (value === null) return 'null';
             if (Array.isArray(value)) return 'array';
@@ -831,8 +839,6 @@
             });
         });
 
-        // 帮助按钮改用CSS悬浮提示，无需事件
-
         document.getElementById('editCurrentNodeBtn').addEventListener('click', () => tryEditNode(currentPath));
         document.getElementById('pushNodeBtn').addEventListener('click', pushEditorToTree);
         document.getElementById('clearEditorBtn').addEventListener('click', () => { if (!editorDirty || confirm('确定清空？未推送更改将丢失')) clearEditor(); });
@@ -995,6 +1001,7 @@
                     rootWrapper = { root: decoded };
                     expandedSet.clear(); whiteListPaths.clear(); blackListPaths.clear(); filterMode = 'none';
                     currentPath = ['root'];
+                    // 重置搜索状态
                     matchPaths = [];
                     matchIndex = -1;
                     lastSearchTerm = '';
