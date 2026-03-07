@@ -30,9 +30,49 @@
         * { box-sizing: border-box; margin: 0; font-family: system-ui, sans-serif; }
         body { background: #f4f3f0; padding: 1.5rem; min-height: 100vh; display: flex; justify-content: center; align-items: center; }
         .editor-container { max-width: 1400px; width: 100%; background: #fefcf7; border-radius: 28px; box-shadow: 0 25px 40px -12px rgba(40,30,10,0.3); padding: 2rem 2rem 4rem 2rem; position: relative; }
-        h1 { font-weight: 500; font-size: 2.2rem; color: #3a2e28; margin-bottom: 1.5rem; border-left: 6px solid #b87c5a; padding-left: 1.3rem; }
+        /* 标题与说明按钮行 */
+        .title-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            margin-bottom: 1.5rem;
+        }
+        h1 {
+            font-weight: 500;
+            font-size: 2.2rem;
+            color: #3a2e28;
+            border-left: 6px solid #b87c5a;
+            padding-left: 1.3rem;
+            margin: 0;
+        }
+        .intro-btn {
+            background: #b6aa9a;
+            color: #fefcf7;
+            margin-left: 1rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+        .intro-btn:hover {
+            background: #9f8e7a;
+            border-color: #9b6243;
+            color: white;
+        }
         .base64-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 0.8rem; align-items: center; }
-        .btn { background: #eae3da; border: none; padding: 0.5rem 1.2rem; border-radius: 60px; font-size: 0.9rem; font-weight: 500; color: #3a2e28; cursor: pointer; transition: 0.15s; border: 1px solid transparent; }
+        .btn {
+            background: #eae3da;
+            border: none;
+            padding: 0.5rem 1.2rem;
+            border-radius: 60px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: #3a2e28;
+            cursor: pointer;
+            transition: 0.15s;
+            border: 1px solid transparent;
+        }
         .btn:hover { background: #d9cdbf; border-color: #c1a58b; }
         .btn-file { background: #dbd0c2; position: relative; display: inline-block; }
         .btn-file input { position: absolute; left:0; top:0; opacity:0; width:100%; height:100%; cursor:pointer; }
@@ -175,12 +215,16 @@
             animation: spin 1s linear infinite;
         }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        @media (max-width:600px) { body{padding:0.8rem;} .editor-container{padding:1.2rem 1rem 5rem;} .float-buttons{right:1rem; bottom:1rem; gap:0.5rem;} .float-buttons .btn{width:3rem; height:3rem; font-size:1.2rem;} .toast-message{font-size:0.8rem; white-space:normal;} .json-tree{padding:1rem 0.8rem;} .tree-node{margin-left:1rem;} .tree-node ul{padding-left:1rem;} }
+        @media (max-width:600px) { body{padding:0.8rem;} .editor-container{padding:1.2rem 1rem 5rem;} .float-buttons{right:1rem; bottom:1rem; gap:0.5rem;} .float-buttons .btn{width:3rem; height:3rem; font-size:1.2rem;} .toast-message{font-size:0.8rem; white-space:normal;} .json-tree{padding:1rem 0.8rem;} .tree-node{margin-left:1rem;} .tree-node ul{padding-left:1rem;} .title-row { flex-direction: column; align-items: flex-start; gap: 0.8rem; } .intro-btn { margin-left: 0; } }
     </style>
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档编辑器 · v0.2603.5</h1>
+        <!-- 标题与使用说明按钮行 -->
+        <div class="title-row">
+            <h1>🍞 SugarCube 存档编辑器 · v0.2603.5</h1>
+            <a href="/intro/" target="_blank" class="btn intro-btn">📘 使用说明</a>
+        </div>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
