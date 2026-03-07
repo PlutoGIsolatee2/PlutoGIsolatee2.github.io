@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🍞 SugarCube 存档编辑器 · v0.2603.2</title>
+    <title>🍞 SugarCube 存档编辑器 · v0.2603.5</title>
     <!-- lz-string -->
     <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
     <!-- CodeMirror 核心和依赖 -->
@@ -53,10 +53,12 @@
             cursor: pointer;
             margin-left: 0.2rem;
             position: relative;
+            z-index: 10;
         }
-        .help-icon:hover::after {
-            content: "普通搜索受黑白名单影响；JSONPath 模式不受黑白名单影响，表达式以 $.root 开头访问存档内容。\A搜索框支持实时搜索（输入后自动搜索）。\A当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效";
-            white-space: pre;
+        .simple-edit-panel .help-icon:hover::after {
+            content: "当当前节点为数组时：输入数组会合并到末尾，其他类型追加到末尾；\A当当前节点为对象时：只有输入对象才会合并，其他类型无效";
+            white-space: pre-wrap;
+            word-break: break-word;
             position: absolute;
             bottom: 150%;
             left: 50%;
@@ -68,8 +70,8 @@
             font-size: 0.8rem;
             font-weight: normal;
             box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-            z-index: 100;
-            width: 300px;
+            z-index: 2000;
+            width: 250px;
             text-align: left;
             pointer-events: none;
             line-height: 1.5;
@@ -78,14 +80,48 @@
         .full-panel-buttons { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; }
         .cm-editor-container { border:1px solid #b9a690; border-radius:24px; overflow:hidden; background:#fcf9f4; max-height:400px; }
         .cm-editor-container .CodeMirror { height:400px; font-family:'Monaco',monospace; font-size:0.9rem; }
-        .search-panel { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center; background:#ece5db; padding:0.6rem 1.2rem; border-radius:60px; margin:1rem 0 0.8rem; }
-        .search-wrapper { flex:3 1 250px; display:flex; background:white; border-radius:40px; border:1px solid #cfbfad; overflow:hidden; }
-        .search-input { flex:1; padding:0.6rem 1.2rem; border:none; outline:none; font-size:0.9rem; }
-        .jsonpath-toggle { background:#d9caba; border:none; padding:0 1rem; font-weight:600; cursor:pointer; display:flex; align-items:center; transition:background 0.2s; }
-        .jsonpath-toggle.active { background:#b29e88; color:white; }
-        .search-btn { background:#cab89e; border:none; border-radius:40px; padding:0.6rem 1.4rem; font-weight:600; color:#2e241d; }
-        .match-indicator { background:#ddcfbe; padding:0.2rem 1rem; border-radius:36px; font-size:0.9rem; font-weight:500; min-width:70px; text-align:center; }
-        .nav-arrow { background:none; border:1px solid #b29e88; font-size:1.2rem; padding:0.2rem 0.8rem; border-radius:30px; cursor:pointer; }
+        .search-panel { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; background: #ece5db; padding: 0.6rem 1.2rem; border-radius: 60px; margin: 1rem 0 0.8rem; }
+        .search-wrapper { flex: 3 1 250px; display: flex; background: white; border-radius: 40px; border: 1px solid #cfbfad; overflow: hidden; }
+        .search-input { flex: 1; padding: 0.6rem 1.2rem; border: none; outline: none; font-size: 0.9rem; }
+        .jsonpath-toggle { background: #d9caba; border: none; padding: 0 1rem; font-weight: 600; cursor: pointer; display: flex; align-items: center; transition: background 0.2s; }
+        .jsonpath-toggle.active { background: #b29e88; color: white; }
+        .search-btn { background: #cab89e; border: none; border-radius: 40px; padding: 0.6rem 1.4rem; font-weight: 600; color: #2e241d; cursor: pointer; }
+        .search-help-icon {
+            background: #cbb59e;
+            border-radius: 50%;
+            width: 1.8rem;
+            height: 1.8rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            z-index: 10;
+        }
+        .search-help-icon:hover::after {
+            content: "普通搜索受黑白名单影响；JSONPath 模式不受黑白名单影响，表达式以 $.root 开头访问存档内容。\A搜索框支持实时搜索（输入后自动搜索）。";
+            white-space: pre-wrap;
+            word-break: break-word;
+            position: absolute;
+            bottom: 150%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #2e241d;
+            color: #f0e2d4;
+            padding: 0.8rem 1.2rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: normal;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            z-index: 2000;
+            width: 300px;
+            text-align: left;
+            pointer-events: none;
+            line-height: 1.5;
+        }
+        .match-indicator { background: #ddcfbe; padding: 0.2rem 1rem; border-radius: 36px; font-size: 0.9rem; font-weight: 500; min-width: 70px; text-align: center; }
+        .nav-arrow { background: none; border: 1px solid #b29e88; font-size: 1.2rem; padding: 0.2rem 0.8rem; border-radius: 30px; cursor: pointer; }
         .filter-toolbar { background:#e8dfd2; padding:0.7rem 1.5rem; border-radius:60px; margin:0.5rem 0 1rem; display:flex; flex-wrap:wrap; align-items:center; gap:0.8rem 1.2rem; font-size:0.95rem; }
         .filter-label { font-weight:500; color:#4f3f33; }
         .filter-btn { background:#dbcdbc; border:none; border-radius:40px; padding:0.4rem 1.2rem; font-size:0.9rem; cursor:pointer; border:1px solid #c5af99; }
@@ -144,7 +180,7 @@
 </head>
 <body>
     <div class="editor-container">
-        <h1>🍞 SugarCube 存档编辑器 · v0.2603.2</h1>
+        <h1>🍞 SugarCube 存档编辑器 · v0.2603.5</h1>
 
         <!-- base64 功能区 -->
         <div class="base64-toolbar">
@@ -158,14 +194,14 @@
         </div>
         <textarea id="base64Input" class="base64-textarea" placeholder="Base64 暗文（lz-string压缩）" spellcheck="false"></textarea>
 
-        <!-- 搜索面板 -->
+        <!-- 搜索面板，包含独立的帮助按钮 -->
         <div class="search-panel">
             <div class="search-wrapper">
                 <input type="text" id="searchInput" class="search-input" placeholder='搜索键/值 或 JSONPath (如 $.root.state)' aria-label="搜索关键词">
                 <button class="jsonpath-toggle" id="jsonpathToggleBtn" aria-label="切换搜索模式">$</button>
             </div>
-            <!-- 保留搜索按钮，但帮助提示已说明实时搜索 -->
             <button class="search-btn" id="searchBtn" aria-label="执行搜索">搜索</button>
+            <span class="search-help-icon" id="searchHelpBtn" aria-label="搜索帮助" role="tooltip">?</span>
             <span class="match-indicator" id="matchCounter" aria-live="polite">0/0</span>
             <button class="nav-arrow" id="prevMatchBtn" aria-label="上一个匹配项">◀</button>
             <button class="nav-arrow" id="nextMatchBtn" aria-label="下一个匹配项">▶</button>
@@ -191,7 +227,7 @@
             <div class="simple-panel-buttons">
                 <button class="btn" id="newNodeBtn" aria-label="新建节点">➕ 新建节点</button>
                 <button class="btn" id="deleteNodeBtn" aria-label="删除当前节点">✖ 删除当前节点</button>
-                <span class="help-icon" id="newNodeHelp" aria-label="帮助说明" role="tooltip">?</span>
+                <span class="help-icon" id="newNodeHelp" aria-label="新建节点帮助" role="tooltip">?</span>
             </div>
             <div class="simple-cm-container">
                 <textarea id="simpleEditor" placeholder="输入合法 JSON 插入到当前节点下…"></textarea>
