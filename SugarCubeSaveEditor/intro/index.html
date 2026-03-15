@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🍞 SugarCube 存档编辑器 · 使用指南</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+        body {
+            background: #f0ede8;
+            padding: 2rem 1.5rem;
+            display: flex;
+            justify-content: center;
+        }
+        .guide-container {
+            max-width: 1100px;
+            width: 100%;
+            background: #fffcf8;
+            border-radius: 32px;
+            box-shadow: 0 20px 35px -8px rgba(60, 45, 30, 0.2);
+            padding: 2.5rem 2rem;
+        }
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 500;
+            color: #3a2e28;
+            border-left: 8px solid #b87c5a;
+            padding-left: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        .subhead {
+            font-size: 1.1rem;
+            color: #6b5847;
+            margin-bottom: 2.5rem;
+            padding-left: 2.3rem;
+        }
+        .version-badge {
+            display: inline-block;
+            background: #dacbbc;
+            padding: 0.2rem 1rem;
+            border-radius: 40px;
+            font-size: 0.9rem;
+            color: #2e241d;
+            margin-left: 1rem;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2.5rem;
+        }
+        .card {
+            background: #faf7f2;
+            border-radius: 28px;
+            padding: 1.5rem 1.3rem;
+            box-shadow: 0 5px 12px rgba(0,0,0,0.03);
+            border: 1px solid #e8ddcf;
+            transition: 0.15s;
+        }
+        .card:hover {
+            border-color: #cbb59e;
+            background: #fefcf7;
+        }
+        .card h2 {
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: #4f3f33;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #e2d7cb;
+            padding-bottom: 0.6rem;
+        }
+        .card h2 span {
+            font-size: 1.8rem;
+        }
+        .card p, .card li {
+            color: #3e332b;
+            line-height: 1.6;
+            font-size: 0.98rem;
+        }
+        .card ul, .card ol {
+            padding-left: 1.4rem;
+            margin-top: 0.5rem;
+        }
+        .card li {
+            margin-bottom: 0.3rem;
+        }
+        .note {
+            background: #ece3d9;
+            border-radius: 24px;
+            padding: 1rem 1.5rem;
+            margin: 1.5rem 0;
+            border-left: 5px solid #b87c5a;
+            font-size: 0.98rem;
+            color: #2e241d;
+        }
+        .note strong {
+            color: #8b5a3c;
+        }
+        .key {
+            background: #e2d7cb;
+            padding: 0.2rem 0.6rem;
+            border-radius: 30px;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #2e241d;
+            white-space: nowrap;
+        }
+        .footer {
+            margin-top: 3rem;
+            text-align: center;
+            color: #9a887b;
+            border-top: 2px dashed #dacbbc;
+            padding-top: 2rem;
+        }
+        .footer a {
+            color: #8b6f58;
+            text-decoration: none;
+        }
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        hr {
+            border: 1px solid #e2d7cb;
+            margin: 2rem 0;
+        }
+        .example-box {
+            background: #f3efe8;
+            border-radius: 40px;
+            padding: 1rem 1.5rem;
+            font-family: 'Monaco', monospace;
+            font-size: 0.9rem;
+            border: 1px solid #d1c3b2;
+            margin: 1rem 0;
+        }
+        @media (max-width: 650px) {
+            body { padding: 1rem; }
+            .guide-container { padding: 1.5rem; }
+            h1 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+<div class="guide-container">
+    <h1>🍞 SugarCube 存档编辑器 <span class="version-badge">v0.2603.5</span></h1>
+    <div class="subhead">一款专门编辑 SugarCube 游戏存档的树形工具 · 支持 Base64、JSON 树、黑白名单、实时搜索、历史撤销/重做</div>
+
+    <div class="grid">
+        <!-- 快速上手卡片 -->
+        <div class="card">
+            <h2><span>🚀</span> 快速上手</h2>
+            <p>1. 在顶部 <strong>Base64 区域</strong> 粘贴或选择存档文件（.txt），点击 <span class="key">解</span> 按钮解码。<br>
+               2. 编辑左侧树节点：点击节点键名可选中，展开/折叠容器。<br>
+               3. 使用下方 <strong>简单编辑面板</strong> 快速插入/删除节点，或使用 <strong>全量编辑面板 (CodeMirror)</strong> 精细修改当前节点。<br>
+               4. 修改完成后，点击 <span class="key">编</span> 按钮编码并复制到剪贴板，或下载为 .txt 文件。</p>
+            <p class="note" style="margin-top:1rem;">💡 所有操作都会自动保存到浏览器 IndexedDB，刷新页面不会丢失进度。</p>
+        </div>
+
+        <!-- 核心概念卡片 -->
+        <div class="card">
+            <h2><span>📦</span> 核心概念</h2>
+            <ul>
+                <li><strong>存档结构</strong>：SugarCube 存档本质是 JSON 对象，编辑器将其展示为可展开的树。根节点固定为 <code>root</code>（面包屑显示为 <code>$</code>）。</li>
+                <li><strong>节点类型</strong>：每个值旁会显示类型标签（string, number, boolean, null, object, array）。</li>
+                <li><strong>当前节点</strong>：高亮背景的行表示当前选中节点，所有编辑操作（新建、删除、全量编辑）都基于此节点。</li>
+                <li><strong>历史记录</strong>：树结构的每一次修改（新建/删除/推送）都会记录，可通过右下角悬浮按钮 <span class="key">↩</span> / <span class="key">↪</span> 撤销/重做。</li>
+            </ul>
+        </div>
+    </div>
+
+    <h2 style="margin: 1.5rem 0 1rem 0; font-weight: 500;">📋 界面分区详解</h2>
+    <div class="grid">
+        <!-- Base64区域 -->
+        <div class="card">
+            <h2><span>🔐</span> Base64 功能区</h2>
+            <ul>
+                <li><strong>复制/粘贴</strong>：操作 Base64 文本。</li>
+                <li><strong>选择文件</strong>：读取本地的 .txt 存档文件，并<em>自动解码</em>。</li>
+                <li><strong>下载 txt</strong>：将当前 Base64 保存为 .txt 文件。</li>
+                <li><span class="key">解</span> / <span class="key">编</span>：悬浮在右下角的两个按钮。解码后树视图更新；编码后自动复制到剪贴板，并更新 Base64 文本框。</li>
+            </ul>
+            <div class="note" style="margin-top:0.8rem;">
+                ⚠️ 解码/编码前若全量编辑器中有未推送的更改，会弹出确认框，避免数据丢失。
+            </div>
+        </div>
+
+        <!-- 树视图和面包屑 -->
+        <div class="card">
+            <h2><span>🌳</span> 树视图 & 面包屑</h2>
+            <ul>
+                <li>点击 <strong>▶/▼</strong> 展开/折叠节点。容器节点显示 <code>Object</code> 或 <code>Array(n)</code>。</li>
+                <li>点击 <strong>键名</strong> 或 <strong>值文本</strong> 可将其设为当前节点（高亮）。</li>
+                <li>面包屑导航显示当前路径：<code>$ / root / state / variables</code>，点击任意段可跳转。</li>
+                <li>叶节点值直接以文本展示（不可编辑，需通过全量面板修改）。</li>
+            </ul>
+        </div>
+
+        <!-- 简单编辑面板 -->
+        <div class="card">
+            <h2><span>➕</span> 简单编辑面板</h2>
+            <p>位于树下方，包含：</p>
+            <ul>
+                <li><span class="key">➕ 新建节点</span>：将下方 JSON 文本插入到当前节点下。</li>
+                <li><span class="key">✖ 删除当前节点</span>：删除选中的节点（根节点不可删）。</li>
+                <li><span class="key">?</span> 按钮：鼠标悬停可查看新建规则：<br>
+                    – 当前节点为数组：输入数组会合并到末尾，其他类型追加到末尾。<br>
+                    – 当前节点为对象：只有输入<strong>对象</strong>才会合并，其他类型无效。
+                </li>
+                <li>文本区内置 CodeMirror，支持语法高亮、括号匹配。</li>
+            </ul>
+        </div>
+
+        <!-- 全量编辑面板 -->
+        <div class="card">
+            <h2><span>✎</span> 全量编辑面板</h2>
+            <ul>
+                <li><span class="key">✎ 编辑当前节点</span>：将当前节点 JSON 格式化后载入编辑器（若节点超大（>2MB）会弹出确认）。</li>
+                <li><span class="key">⏎ 推送修改</span>：将编辑器内容解析后更新到树视图，并清空编辑器。</li>
+                <li><span class="key">🗑️ 清空编辑器</span>：清空当前编辑内容（若未推送会提醒）。</li>
+                <li><span class="key">↩ / ↪</span>：编辑器内部的撤销/重做（与树的历史独立）。</li>
+                <li><span class="key">✨ 格式化</span>：美化 JSON 格式（重新解析后序列化）。</li>
+            </ul>
+            <p>编辑器支持语法高亮、自动补全、实时错误检查、代码折叠、搜索替换（<kbd>Ctrl+F</kbd>）等。</p>
+        </div>
+    </div>
+
+    <h2 style="margin: 1.5rem 0 1rem 0; font-weight: 500;">🔍 搜索与黑白名单</h2>
+    <div class="grid">
+        <!-- 搜索面板 -->
+        <div class="card">
+            <h2><span>🔎</span> 搜索</h2>
+            <ul>
+                <li><strong>两种模式</strong>：点击 <span class="key">$</span> 按钮切换文本搜索或 JSONPath 搜索。按钮背景色深表示 JSONPath 模式。</li>
+                <li><strong>文本搜索</strong>：在键名和值中（字符串形式）不区分大小写查找。受黑白名单影响。</li>
+                <li><strong>JSONPath 搜索</strong>：使用 JSONPath 语法（如 <code>$.root.state</code>、<code>$..price</code>）精确查询，<em>不受黑白名单限制</em>（已在帮助中说明）。</li>
+                <li>输入时自动实时搜索（防抖 300ms），也可点击“搜索”按钮。匹配数显示在右侧，可用 ◀/▶ 跳转。</li>
+                <li>搜索到的节点会自动展开所有祖先并高亮，同时滚动到视野中央。</li>
+            </ul>
+            <div class="example-box">
+                $.root.state.variables.gold<br>
+                $..author
+            </div>
+        </div>
+
+        <!-- 黑白名单 -->
+        <div class="card">
+            <h2><span>⚪⚫</span> 黑白名单</h2>
+            <ul>
+                <li>点击 <span class="key">⚪ 白名单</span> 将当前节点加入白名单；<span class="key">⚫ 黑名单</span> 加入黑名单。</li>
+                <li>通过 <span class="key">🔘 未启用</span> 按钮可循环切换过滤模式：白名单/黑名单/无。</li>
+                <li>启用白名单后，只有位于白名单节点<strong>及其子树内</strong>的节点会被搜索到；黑名单则排除该节点及其子树。</li>
+                <li><span class="key">🗑️ 清空当前启用名单</span>：根据当前模式清空白名单或黑名单（无模式时清空全部）。</li>
+                <li>添加/清除名单后，若存在搜索词会自动重新搜索。</li>
+            </ul>
+            <p class="note" style="margin-top:0.8rem;">📌 黑白名单影响的是普通文本搜索，JSONPath 搜索不受影响。</p>
+        </div>
+    </div>
+
+    <h2 style="margin: 1.5rem 0 1rem 0; font-weight: 500;">🔄 历史与持久化</h2>
+    <div class="grid">
+        <div class="card">
+            <h2><span>⏳</span> 撤销/重做</h2>
+            <ul>
+                <li>树结构的每次修改（新建、删除、推送、解码）都会记录历史，最多 50 步。</li>
+                <li>使用右下角悬浮按钮 <span class="key">↩</span> / <span class="key">↪</span> 进行全局撤销/重做。</li>
+                <li>全量编辑器内部也有独立的撤销/重做按钮，仅影响编辑器内容。</li>
+            </ul>
+        </div>
+        <div class="card">
+            <h2><span>💾</span> IndexedDB 自动保存</h2>
+            <ul>
+                <li>当前树结构、展开状态、黑白名单、历史记录、编辑器内容等都会自动存入浏览器 IndexedDB。</li>
+                <li>刷新页面或重新打开编辑器时，自动恢复上次工作状态（搜索状态除外，保持干净）。</li>
+                <li>页面关闭或隐藏时也会尝试保存，最大限度防止数据丢失。</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="note" style="margin-top:2rem;">
+        <strong>📎 小贴士</strong>
+        <ul style="margin-top:0.5rem;">
+            <li>如果编辑了节点但忘记推送，切换节点或执行解码等操作时会弹出提醒，防止丢失。</li>
+            <li>大节点（>2MB）加载到全量编辑器前会弹出确认，避免浏览器卡顿。</li>
+            <li>鼠标悬停在任何 <span class="key">?</span> 按钮上均可查看上下文帮助（新建节点规则、搜索说明）。</li>
+            <li>悬浮按钮组（解、编、撤销、重做）固定在右下角，始终可及。</li>
+            <li>所有操作均配有 <code>aria-label</code>，屏幕阅读器友好。</li>
+        </ul>
+    </div>
+
+    <hr>
+    <div style="text-align: center; color: #6b5847;">
+        <p>🎮 现在就去编辑你的 SugarCube 存档吧！<br>
+        有任何问题，可将鼠标悬停在 <span class="key">?</span> 图标上查看说明。</p>
+        <p style="margin-top:1rem; font-size:0.9rem;">SugarCube 存档编辑器 · 基于 lz-string、CodeMirror、jsonpath-plus 构建 · 完全开源</p>
+    </div>
+    <div class="footer">
+        ⸻ 使用愉快 ⸻
+    </div>
+</div>
+</body>
+</html>
