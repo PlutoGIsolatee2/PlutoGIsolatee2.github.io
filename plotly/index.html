@@ -1,176 +1,519 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotly 动态折线图 (修复版)</title>
-    <!-- 使用可靠的 plotly.js CDN，并添加备用版本 -->
+    <title>Plotly 深层嵌套折线图 · 路径即折线</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
-        /* (样式与之前相同，略作精简) */
-        * { box-sizing: border-box; font-family: system-ui, sans-serif; }
-        body { background: #f5f7fb; margin: 0; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
-        .card { background: white; max-width: 1200px; width: 100%; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.08); padding: 28px 32px; }
-        h2 { margin-top: 0; margin-bottom: 6px; font-weight: 500; color: #1a2639; }
-        .sub { color: #4a5568; font-size: 0.95rem; margin-bottom: 24px; border-left: 4px solid #3b82f6; padding-left: 16px; background: #f8fafc; border-radius: 0 8px 8px 0; }
-        textarea { width: 100%; height: 200px; padding: 18px; font-family: monospace; font-size: 14px; background: #1e293b; color: #e2e8f0; border: 2px solid #334155; border-radius: 18px; resize: vertical; }
-        textarea:focus { border-color: #3b82f6; outline: none; }
-        .button-bar { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
-        .btn { background: white; border: 1px solid #cbd5e1; padding: 10px 24px; border-radius: 40px; font-weight: 500; cursor: pointer; }
-        .btn-primary { background: #1e293b; color: white; border-color: #1e293b; }
-        .btn-primary:hover { background: #0f172a; }
-        .error-message { background: #fee2e2; border: 1px solid #f87171; color: #991b1b; padding: 12px 18px; border-radius: 40px; display: flex; align-items: center; gap: 12px; margin: 8px 0; }
-        .error-message.hidden { display: none; }
-        #chart { width: 100%; height: 500px; border-radius: 20px; border: 1px solid #e9edf2; background: #fefefe; margin-top: 20px; }
-        .footer-note { margin-top: 20px; text-align: right; font-size: 0.85rem; color: #64748b; }
+        * {
+            box-sizing: border-box;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        }
+        body {
+            background: #f1f5f9;
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .card {
+            background: #ffffff;
+            max-width: 1300px;
+            width: 100%;
+            border-radius: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            padding: 32px 36px;
+        }
+        h2 {
+            margin: 0 0 8px 0;
+            font-weight: 600;
+            font-size: 1.9rem;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #0f172a, #334155);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .sub {
+            color: #334155;
+            font-size: 1rem;
+            margin-bottom: 28px;
+            padding-left: 20px;
+            border-left: 6px solid #3b82f6;
+            background: #f8fafc;
+            border-radius: 0 12px 12px 0;
+            line-height: 1.6;
+            padding: 12px 20px;
+        }
+        .sub code {
+            background: #e2e8f0;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 0.9em;
+            color: #0f172a;
+        }
+        textarea {
+            width: 100%;
+            height: 250px;
+            padding: 22px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            background: #0f172a;
+            color: #e2e8f0;
+            border: 2px solid #334155;
+            border-radius: 24px;
+            resize: vertical;
+            outline: none;
+            transition: 0.2s;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.6);
+        }
+        textarea:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 4px rgba(59,130,246,0.3), inset 0 2px 8px #000;
+        }
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            margin: 24px 0 16px;
+            align-items: center;
+        }
+        .btn {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 12px 28px;
+            border-radius: 40px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #1e293b;
+            cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 4px 6px -2px rgba(0,0,0,0.05);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: #1e293b;
+            border-color: #1e293b;
+            color: white;
+            box-shadow: 0 12px 20px -10px #1e293b80;
+        }
+        .btn-primary:hover {
+            background: #0f172a;
+            transform: scale(1.02);
+        }
+        .btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+        }
+        .error-banner {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #7f1d1d;
+            padding: 14px 22px;
+            border-radius: 60px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin: 16px 0 20px;
+            box-shadow: 0 6px 12px -8px #ef4444;
+        }
+        .error-banner.hidden {
+            display: none;
+        }
+        #chart {
+            width: 100%;
+            height: 550px;
+            border-radius: 24px;
+            border: 1px solid #e2e8f0;
+            background: #fcfdff;
+            margin-top: 25px;
+            box-shadow: 0 12px 24px -12px rgba(0,0,0,0.2);
+        }
+        .stats {
+            margin-top: 18px;
+            font-size: 0.9rem;
+            color: #475569;
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+            background: #f1f4f9;
+            padding: 12px 24px;
+            border-radius: 60px;
+        }
+        .badge {
+            background: #d9e2ef;
+            color: #1e293b;
+            border-radius: 40px;
+            padding: 4px 16px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        .footer-note {
+            margin-top: 20px;
+            text-align: right;
+            font-size: 0.9rem;
+            color: #62748c;
+            border-top: 1px dashed #cbd5e1;
+            padding-top: 18px;
+        }
     </style>
 </head>
 <body>
 <div class="card">
-    <h2>📈 多折线 · 索引即X轴</h2>
+    <h2>🌿 深层嵌套 · 路径即折线</h2>
     <div class="sub">
-        输入对象数组 <code>[{item1: value, item2: value}, ...]</code>，每个键为一条折线，数组索引为X轴。
+        输入一个对象数组，支持任意深度嵌套。每条折线由 <strong>叶节点的完整路径</strong> 命名（如 <code>user.profile.age</code>），
+        值为该路径的数值（非数值转为 <code>null</code>，显示为断点）。数组索引为 X 轴。
     </div>
 
-    <textarea id="jsonInput" placeholder='示例：[{"sales":12, "cost":5}, {"sales":19, "cost":8}]'>[
-  {"visits": 120, "conversions": 12, "revenue": 340},
-  {"visits": 135, "conversions": 15, "revenue": 410},
-  {"visits": 142, "conversions": 14, "revenue": 398},
-  {"visits": 158, "conversions": 20, "revenue": 590},
-  {"visits": 175, "conversions": 22, "revenue": 670}
+    <textarea id="jsonInput" placeholder='例如：[{"a":1,"b":{"c":2}}, {"a":3,"b":{"c":4}}]'>[
+  {
+    "time": "2025-01",
+    "metrics": {
+      "cpu": 12.5,
+      "memory": 1024,
+      "disk": {
+        "used": 450,
+        "free": 550
+      }
+    },
+    "tags": ["prod", "web"]
+  },
+  {
+    "time": "2025-02",
+    "metrics": {
+      "cpu": 14.2,
+      "memory": 1150,
+      "disk": {
+        "used": 500,
+        "free": 500
+      }
+    },
+    "tags": ["prod", "web"]
+  },
+  {
+    "time": "2025-03",
+    "metrics": {
+      "cpu": 11.8,
+      "memory": 1080,
+      "disk": {
+        "used": 530,
+        "free": 470
+      }
+    },
+    "tags": ["prod", "web"]
+  },
+  {
+    "time": "2025-04",
+    "metrics": {
+      "cpu": 17.3,
+      "memory": 1220,
+      "disk": {
+        "used": 620,
+        "free": 380
+      }
+    },
+    "tags": ["prod", "web"]
+  }
 ]</textarea>
 
-    <div class="button-bar">
-        <button class="btn btn-primary" id="drawBtn">🎨 绘制图表</button>
-        <button class="btn" id="resetExampleBtn">↻ 恢复示例</button>
+    <div class="toolbar">
+        <button class="btn btn-primary" id="drawBtn">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M12 22V12"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22v-5"/></svg>
+            绘制深层折线图
+        </button>
+        <button class="btn" id="resetExampleBtn">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg>
+            恢复示例
+        </button>
+        <span class="badge">✨ 自动提取所有叶节点路径</span>
     </div>
 
-    <div id="errorBox" class="error-message hidden">
-        <span id="errorText"></span>
+    <div id="errorBanner" class="error-banner hidden">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="errorMessage"></span>
     </div>
 
     <div id="chart"></div>
-    <div class="footer-note">⚡ 缺失值显示为断点 · 使用 Plotly.js 渲染</div>
+
+    <div class="stats" id="statsPanel">
+        <span>📊 等待绘图…</span>
+    </div>
+
+    <div class="footer-note">
+        ⚡ 数组索引为 X 轴 · 路径中的数组元素会被展开为 <code>path.[index]</code> · 非数值或缺失显示为断点
+    </div>
 </div>
 
 <script>
     (function() {
-        // 获取元素
+        // DOM 元素
         const textarea = document.getElementById('jsonInput');
         const drawBtn = document.getElementById('drawBtn');
         const resetBtn = document.getElementById('resetExampleBtn');
-        const errorBox = document.getElementById('errorBox');
-        const errorText = document.getElementById('errorText');
+        const errorBanner = document.getElementById('errorBanner');
+        const errorSpan = document.getElementById('errorMessage');
         const chartDiv = document.getElementById('chart');
+        const statsPanel = document.getElementById('statsPanel');
 
         // 示例数据（与textarea默认一致）
         const EXAMPLE_JSON = `[
-  {"visits": 120, "conversions": 12, "revenue": 340},
-  {"visits": 135, "conversions": 15, "revenue": 410},
-  {"visits": 142, "conversions": 14, "revenue": 398},
-  {"visits": 158, "conversions": 20, "revenue": 590},
-  {"visits": 175, "conversions": 22, "revenue": 670}
+  {
+    "time": "2025-01",
+    "metrics": {
+      "cpu": 12.5,
+      "memory": 1024,
+      "disk": {
+        "used": 450,
+        "free": 550
+      }
+    },
+    "tags": ["prod", "web"]
+  },
+  {
+    "time": "2025-02",
+    "metrics": {
+      "cpu": 14.2,
+      "memory": 1150,
+      "disk": {
+        "used": 500,
+        "free": 500
+      }
+    },
+    "tags": ["prod", "web"]
+  },
+  {
+    "time": "2025-03",
+    "metrics": {
+      "cpu": 11.8,
+      "memory": 1080,
+      "disk": {
+        "used": 530,
+        "free": 470
+      }
+    },
+    "tags": ["prod", "web"]
+  },
+  {
+    "time": "2025-04",
+    "metrics": {
+      "cpu": 17.3,
+      "memory": 1220,
+      "disk": {
+        "used": 620,
+        "free": 380
+      }
+    },
+    "tags": ["prod", "web"]
+  }
 ]`;
 
-        // 辅助函数：隐藏错误
+        // 辅助：隐藏错误
         function hideError() {
-            errorBox.classList.add('hidden');
+            errorBanner.classList.add('hidden');
         }
 
         // 显示错误
         function showError(msg) {
-            errorText.textContent = msg || '未知错误';
-            errorBox.classList.remove('hidden');
-            console.error('[Plotly Error]', msg);
+            errorSpan.textContent = msg;
+            errorBanner.classList.remove('hidden');
+            console.error('[深层绘图错误]', msg);
         }
 
-        // 核心绘图函数 (始终使用 newPlot 重新创建，避免状态残留)
+        // 更新统计信息
+        function updateStats(seriesCount, pointCount, paths) {
+            if (seriesCount && pointCount) {
+                statsPanel.innerHTML = `<span>📈 折线数量：<strong>${seriesCount}</strong> 条 &nbsp;·&nbsp; 数据点数量：<strong>${pointCount}</strong> 个索引</span>
+                                        <span style="margin-left:auto;">🔖 路径示例：${paths.slice(0,3).join(' · ')}${paths.length>3 ? ' …' : ''}</span>`;
+            } else {
+                statsPanel.innerHTML = `<span>📊 等待绘图…</span>`;
+            }
+        }
+
+        // 递归提取叶节点路径和值 (扁平化)
+        // 输入：obj - 当前对象, prefix - 当前路径前缀 (字符串)
+        // 输出：Map 对象，键为完整路径，值为该路径的值（原始值，可能不是数字）
+        function extractLeafPaths(obj, prefix = '') {
+            let result = new Map();
+            if (obj === null || typeof obj !== 'object') {
+                // 基本类型值：视为叶节点，直接返回
+                result.set(prefix, obj);
+                return result;
+            }
+            // 处理数组：遍历每个元素，路径添加 [index]
+            if (Array.isArray(obj)) {
+                if (obj.length === 0) {
+                    // 空数组：没有叶节点，但可以视为一个空值？我们忽略空数组，不产生折线
+                    return result;
+                }
+                for (let i = 0; i < obj.length; i++) {
+                    const element = obj[i];
+                    const newPrefix = prefix ? `${prefix}.[${i}]` : `[${i}]`;
+                    const nested = extractLeafPaths(element, newPrefix);
+                    nested.forEach((value, path) => result.set(path, value));
+                }
+                return result;
+            }
+            // 处理普通对象
+            for (const [key, value] of Object.entries(obj)) {
+                const newPrefix = prefix ? `${prefix}.${key}` : key;
+                if (value !== null && typeof value === 'object') {
+                    // 继续递归
+                    const nested = extractLeafPaths(value, newPrefix);
+                    nested.forEach((v, p) => result.set(p, v));
+                } else {
+                    // 基本类型叶节点
+                    result.set(newPrefix, value);
+                }
+            }
+            return result;
+        }
+
+        // 核心绘图函数 (支持深层嵌套)
         function drawFromJSON(jsonString) {
             hideError();
 
-            // 1. 检查 Plotly 是否加载
             if (typeof Plotly === 'undefined') {
-                showError('Plotly 库未加载，请检查网络或刷新重试。');
+                showError('Plotly 库未加载，请刷新页面');
                 return;
             }
 
-            // 2. 解析 JSON
-            let data;
+            let rawData;
             try {
-                data = JSON.parse(jsonString);
+                rawData = JSON.parse(jsonString);
             } catch (e) {
                 showError('JSON 解析失败: ' + e.message);
                 return;
             }
 
-            // 3. 验证为数组
-            if (!Array.isArray(data)) {
+            // 必须是数组
+            if (!Array.isArray(rawData)) {
                 showError('输入必须是数组');
                 return;
             }
-            if (data.length === 0) {
+            if (rawData.length === 0) {
                 showError('数组不能为空');
                 return;
             }
 
-            // 4. 验证每个元素为简单对象
-            for (let i = 0; i < data.length; i++) {
-                const item = data[i];
-                if (typeof item !== 'object' || item === null || Array.isArray(item)) {
-                    showError(`索引 ${i} 的元素不是普通对象`);
-                    return;
+            // 检查每个元素是否为对象或数组（允许根元素是数组？根元素本身是数组元素，所以可以是任何类型，但如果是基本类型，则折线路径就是空字符串？不合理，我们要求根元素应该是对象，否则无法提取有意义的键名）
+            // 这里放宽：如果某个元素不是对象/数组，将其包装成 { "value": 该元素 } 以便处理？但为了简单，若遇到非对象元素，给出警告并将该元素视为一个值，路径为 "root" 或索引？
+            // 我们采取更合理的方式：如果数组元素是基本类型，则将该元素视为一个名为 "value" 的叶节点。
+            // 预处理：将每个基本类型元素转换为 { value: 该值 }
+            const processedData = rawData.map((item, idx) => {
+                if (item === null || (typeof item !== 'object' && !Array.isArray(item))) {
+                    console.warn(`索引 ${idx} 的元素是基本类型，已自动包装为 { "value": ${item} }`);
+                    return { value: item };
                 }
-            }
+                return item;
+            });
 
-            // 5. 提取所有键名（折线名称）
-            const keysSet = new Set();
-            data.forEach(obj => Object.keys(obj).forEach(k => keysSet.add(k)));
-            if (keysSet.size === 0) {
-                showError('对象中未找到任何键');
-                return;
-            }
-            const keys = Array.from(keysSet);
+            // 收集所有叶节点路径及其对应值序列
+            const seriesMap = new Map(); // key: 路径, value: 数组 (长度=数据长度，初始全null)
+            // 同时收集所有路径以便最后构建traces
+            const allPaths = new Set();
 
-            // 6. 准备 X 轴 (数组索引)
-            const indices = data.map((_, idx) => idx);
+            // 先遍历所有元素，收集所有出现的路径
+            processedData.forEach((item, idx) => {
+                const leafMap = extractLeafPaths(item);
+                leafMap.forEach((value, path) => {
+                    allPaths.add(path);
+                });
+            });
 
-            // 7. 构建 traces
-            const traces = keys.map(key => {
-                const yValues = data.map(obj => obj.hasOwnProperty(key) ? obj[key] : null);
-                return {
-                    name: key,
+            const paths = Array.from(allPaths).sort(); // 排序让显示一致
+            const numPoints = processedData.length;
+
+            // 初始化 seriesMap: 每条路径对应一个长度为 numPoints 的数组，填充 null
+            paths.forEach(path => {
+                seriesMap.set(path, new Array(numPoints).fill(null));
+            });
+
+            // 第二次遍历，填充具体值
+            processedData.forEach((item, idx) => {
+                const leafMap = extractLeafPaths(item);
+                leafMap.forEach((value, path) => {
+                    if (seriesMap.has(path)) {
+                        // 尝试将值转为数字，若失败则保留null (但保留原始值用于警告)
+                        let numericVal = null;
+                        if (typeof value === 'number') {
+                            numericVal = value;
+                        } else if (typeof value === 'string' && !isNaN(Number(value))) {
+                            numericVal = Number(value);
+                            console.warn(`路径 "${path}" 索引 ${idx} 的值是数字字符串 "${value}"，已转换为数字`);
+                        } else if (value === null) {
+                            numericVal = null; // null 保持 null
+                        } else {
+                            console.warn(`路径 "${path}" 索引 ${idx} 的值 "${value}" 无法转换为数字，将显示为断点`);
+                        }
+                        seriesMap.get(path)[idx] = numericVal;
+                    }
+                });
+            });
+
+            // 构建 traces
+            const traces = [];
+            const indices = Array.from({ length: numPoints }, (_, i) => i); // X轴
+
+            paths.forEach(path => {
+                const yValues = seriesMap.get(path);
+                traces.push({
+                    name: path,
                     type: 'scatter',
                     mode: 'lines+markers',
                     x: indices,
                     y: yValues,
-                    line: { width: 2.5 },
-                    marker: { size: 6 },
-                    connectgaps: false  // 断开 null 值
-                };
+                    line: { width: 2.2 },
+                    marker: { size: 5, opacity: 0.8 },
+                    connectgaps: false
+                });
             });
 
-            // 8. 布局设置
+            // 布局
             const layout = {
-                title: '多折线图 (索引为X轴)',
-                xaxis: { 
-                    title: '数组索引', 
-                    tickmode: 'linear', 
-                    tick0: 0, 
+                title: '深层嵌套折线图 (叶节点路径为图例)',
+                xaxis: {
+                    title: '数组索引',
+                    tickmode: 'linear',
+                    tick0: 0,
                     dtick: 1,
-                    showgrid: true 
+                    showgrid: true,
+                    gridcolor: '#e2e8f0'
                 },
-                yaxis: { title: '数值', showgrid: true },
+                yaxis: {
+                    title: '数值',
+                    showgrid: true,
+                    gridcolor: '#e2e8f0'
+                },
                 hovermode: 'x unified',
-                legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' },
-                margin: { t: 50, b: 80, l: 60, r: 40 },
-                plot_bgcolor: '#fcfdff'
+                legend: {
+                    orientation: 'h',
+                    y: -0.25,
+                    x: 0.5,
+                    xanchor: 'center',
+                    font: { size: 10 },
+                    itemsizing: 'constant'
+                },
+                margin: { t: 50, b: 100, l: 60, r: 40 },
+                plot_bgcolor: '#fcfdff',
+                paper_bgcolor: '#ffffff'
             };
 
-            // 9. 使用 newPlot 完全重新绘图（简单可靠）
+            // 使用 newPlot 绘制
             Plotly.newPlot(chartDiv, traces, layout, { responsive: true })
+                .then(() => {
+                    updateStats(traces.length, numPoints, paths);
+                })
                 .catch(err => {
-                    console.warn('Plotly.newPlot 错误:', err);
-                    showError('绘图时发生内部错误，请检查数值类型');
+                    console.error('Plotly绘图出错', err);
+                    showError('绘图时发生内部错误，请检查数据格式');
                 });
         }
 
@@ -181,7 +524,7 @@
             drawFromJSON(EXAMPLE_JSON);
         });
 
-        // 支持 Ctrl+Enter 快捷键
+        // Ctrl+Enter 快捷键
         textarea.addEventListener('keydown', (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
@@ -189,13 +532,12 @@
             }
         });
 
+        textarea.addEventListener('input', hideError);
+
         // 页面加载后立即绘制示例
         window.addEventListener('load', () => {
             drawFromJSON(textarea.value);
         });
-
-        // 额外：如果用户修改输入，清除旧错误（可选）
-        textarea.addEventListener('input', hideError);
     })();
 </script>
 </body>
