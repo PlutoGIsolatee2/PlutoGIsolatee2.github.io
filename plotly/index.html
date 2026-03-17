@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotly 深层嵌套 + 大JSON防阻塞 + 可滚动容器</title>
+    <title>Plotly 滑块控制X/Y轴范围 · 大JSON流畅渲染</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
         * {
@@ -18,6 +18,7 @@
             justify-content: center;
             align-items: center;
             padding: 20px;
+            position: relative;
         }
         .card {
             background: #ffffff;
@@ -26,6 +27,7 @@
             border-radius: 32px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             padding: 32px 36px;
+            margin: 0 60px; /* 给左右滑块留空间 */
         }
         h2 {
             margin: 0 0 8px 0;
@@ -192,19 +194,126 @@
             border-top: 1px dashed #cbd5e1;
             padding-top: 18px;
         }
+
+        /* ---------- 固定滑块（窗口两侧） ---------- */
+        .slider-panel {
+            position: fixed;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(8px);
+            padding: 20px 12px;
+            border-radius: 40px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            border: 1px solid #e2e8f0;
+            z-index: 1000;
+        }
+        .slider-panel.left {
+            left: 10px;
+        }
+        .slider-panel.right {
+            right: 10px;
+        }
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: #1e293b;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        .slider-group label {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            margin-bottom: 8px;
+            color: #475569;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        /* 竖向滑块：通过宽高反转实现 */
+        .slider-group input[type=range] {
+            width: 150px;            /* 滑块长度 */
+            height: 6px;              /* 滑块厚度 */
+            background: #d1d5db;
+            border-radius: 10px;
+            -webkit-appearance: none;
+            appearance: none;
+            transform: rotate(270deg); /* 旋转使水平变为垂直 */
+            margin: 50px 0;           /* 调整位置使其居中 */
+            cursor: pointer;
+        }
+        .slider-group input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #3b82f6;
+            border-radius: 50%;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            border: 2px solid white;
+        }
+        .slider-group input[type=range]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            background: #3b82f6;
+            border-radius: 50%;
+            border: 2px solid white;
+        }
+        .range-value {
+            margin-top: 12px;
+            font-size: 0.8rem;
+            background: #f1f4f9;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
     </style>
 </head>
 <body>
-<div class="card">
-    <h2>🌿 深层嵌套 · 大JSON不阻塞 · 可滚动视图</h2>
-    <div class="sub">
-        输入一个对象数组，支持任意深度嵌套。每条折线由<strong>叶节点的完整路径</strong>命名（如 <code>metrics.disk.used</code>），
-        值为该路径的数值（非数值转为 <code>null</code>，显示为断点）。数组索引为 X 轴。<br>
-        ✅ 拖拽平移 | 滚轮/捏合缩放 | 按住 Shift 水平缩放 | 按住 Ctrl 垂直缩放<br>
-        ✅ 图表固定2000x1200，外层容器可滚动，大数据解析在后台Worker中进行，界面不卡顿。
+    <!-- 左侧滑块组：X轴 min / max (固定在窗口) -->
+    <div class="slider-panel left">
+        <div class="slider-group">
+            <label>X 最小值</label>
+            <input type="range" id="xMinSlider" min="0" max="100" value="0" step="1">
+            <span class="range-value" id="xMinVal">0</span>
+        </div>
+        <div class="slider-group">
+            <label>X 最大值</label>
+            <input type="range" id="xMaxSlider" min="0" max="100" value="100" step="1">
+            <span class="range-value" id="xMaxVal">100</span>
+        </div>
     </div>
 
-    <textarea id="jsonInput" placeholder='例如：[{"a":1,"b":{"c":2}}, {"a":3,"b":{"c":4}}]'>[
+    <!-- 右侧滑块组：Y轴 min / max (固定在窗口) -->
+    <div class="slider-panel right">
+        <div class="slider-group">
+            <label>Y 最小值</label>
+            <input type="range" id="yMinSlider" min="0" max="100" value="0" step="0.1">
+            <span class="range-value" id="yMinVal">0</span>
+        </div>
+        <div class="slider-group">
+            <label>Y 最大值</label>
+            <input type="range" id="yMaxSlider" min="0" max="100" value="100" step="0.1">
+            <span class="range-value" id="yMaxVal">100</span>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>🌿 滑块控制X/Y轴范围 · 大JSON流畅渲染</h2>
+        <div class="sub">
+            输入一个对象数组，支持任意深度嵌套。每条折线由<strong>叶节点的完整路径</strong>命名（如 <code>metrics.disk.used</code>），
+            值为该路径的数值（非数值转为 <code>null</code>，显示为断点）。数组索引为 X 轴。<br>
+            ✅ 左右两侧固定滑块：左侧控制X轴范围，右侧控制Y轴范围（上下滑动）<br>
+            ✅ 滚轮/触屏缩放已禁用，仅滑块控制视图<br>
+            ✅ 使用 WebGL (scattergl) 渲染，折线超200条时警告并限制
+        </div>
+
+        <textarea id="jsonInput" placeholder='例如：[{"a":1,"b":{"c":2}}, {"a":3,"b":{"c":4}}]'>[
   {
     "time": "2025-01",
     "metrics": {
@@ -255,43 +364,43 @@
   }
 ]</textarea>
 
-    <div class="toolbar">
-        <button class="btn btn-primary" id="drawBtn">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M12 22V12"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22v-5"/></svg>
-            绘制深层折线图（Worker处理）
-        </button>
-        <button class="btn" id="resetExampleBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg>
+        <div class="toolbar">
+            <button class="btn btn-primary" id="drawBtn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="M12 22V12"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22v-5"/></svg>
+            绘制（Worker处理）
+            </button>
+            <button class="btn" id="resetExampleBtn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 3v6h6"/></svg>
             恢复示例
-        </button>
-        <span class="badge">✨ 自动提取所有叶节点路径</span>
-    </div>
+            </button>
+            <span class="badge">✨ 自动提取叶节点路径 · 最多200条折线</span>
+        </div>
 
-    <div id="errorBanner" class="error-banner hidden">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span id="errorMessage"></span>
-    </div>
+        <div id="errorBanner" class="error-banner hidden">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <span id="errorMessage"></span>
+        </div>
 
-    <!-- 加载提示 -->
-    <div id="loadingOverlay" class="loading-overlay">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
-        <span>正在解析大数据，请稍候...</span>
-    </div>
+        <!-- 加载提示 -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="spin"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+            <span>正在解析大数据，请稍候...</span>
+        </div>
 
-    <!-- 可滚动容器 + 固定大尺寸图表 -->
-    <div class="chart-scroll-container">
-        <div id="chart"></div>
-    </div>
+        <!-- 可滚动容器 + 固定大尺寸图表 -->
+        <div class="chart-scroll-container">
+            <div id="chart"></div>
+        </div>
 
-    <div class="stats" id="statsPanel">
-        <span>📊 等待绘图…</span>
-    </div>
+        <div class="stats" id="statsPanel">
+            <span>📊 等待绘图…</span>
+        </div>
 
-    <div class="footer-note">
-        ⚡ 数组索引为 X 轴 · 路径中的数组元素会被展开为 <code>path.[index]</code> · 非数值或缺失显示为断点<br>
-        🖱️ 拖拽平移 | 滚轮缩放 | Shift+滚轮水平缩放 | Ctrl+滚轮垂直缩放 | 外层容器可滚动
+        <div class="footer-note">
+            ⚡ 数组索引为 X 轴 · 路径中的数组元素会被展开为 <code>path.[index]</code> · 非数值或缺失显示为断点<br>
+            🎛️ 左侧滑块控制X轴范围，右侧滑块控制Y轴范围 | 图表可滚动查看
+        </div>
     </div>
-</div>
 
 <script>
     (function() {
@@ -304,6 +413,16 @@
         const chartDiv = document.getElementById('chart');
         const statsPanel = document.getElementById('statsPanel');
         const loadingOverlay = document.getElementById('loadingOverlay');
+
+        // 滑块元素
+        const xMinSlider = document.getElementById('xMinSlider');
+        const xMaxSlider = document.getElementById('xMaxSlider');
+        const yMinSlider = document.getElementById('yMinSlider');
+        const yMaxSlider = document.getElementById('yMaxSlider');
+        const xMinVal = document.getElementById('xMinVal');
+        const xMaxVal = document.getElementById('xMaxVal');
+        const yMinVal = document.getElementById('yMinVal');
+        const yMaxVal = document.getElementById('yMaxVal');
 
         // 示例数据（与textarea默认一致）
         const EXAMPLE_JSON = `[
@@ -390,13 +509,14 @@
 
         // --- 创建 Web Worker (内联 Blob) ---
         let worker = null;
+        let currentTraces = [];      // 保存当前绘制的traces，用于滑块更新范围时重新relayout
+        let currentPointCount = 0;
 
         function initWorker() {
-            if (worker) return; // 已经存在
+            if (worker) return;
 
-            // Worker 内部代码：接收原始数据数组，处理深层嵌套提取，返回 traces 数据（路径+值数组）
             const workerCode = `
-                // 递归提取叶节点路径和原始值（不转换数字，保留原始类型）
+                // 递归提取叶节点路径和原始值
                 function extractLeafPaths(obj, prefix = '') {
                     let result = new Map();
                     if (obj === null || typeof obj !== 'object') {
@@ -444,22 +564,30 @@
                         leafMap.forEach((_, path) => allPathsSet.add(path));
                     });
 
-                    const paths = Array.from(allPathsSet).sort();
+                    let paths = Array.from(allPathsSet).sort();
+                    const totalPaths = paths.length;
+
+                    // 限制折线数量（最多200条）
+                    const MAX_SERIES = 200;
+                    if (totalPaths > MAX_SERIES) {
+                        self.postMessage({ type: 'warning', message: \`折线数量过多 (\${totalPaths}条)，仅渲染前\${MAX_SERIES}条，其余忽略。\` });
+                        paths = paths.slice(0, MAX_SERIES);
+                    }
 
                     // 初始化每条路径的值数组
                     const seriesData = {};
                     paths.forEach(path => { seriesData[path] = new Array(pointsCount).fill(null); });
 
-                    // 第二次遍历填充具体值，并转换为数字或null（这里只做简单转换，警告由主线程处理）
+                    // 第二次遍历填充具体值，并转换为数字或null
                     processedData.forEach((item, idx) => {
                         const leafMap = extractLeafPaths(item);
                         leafMap.forEach((value, path) => {
+                            if (!paths.includes(path)) return; // 忽略超出限制的路径
                             let numericVal = null;
                             if (typeof value === 'number') {
                                 numericVal = value;
                             } else if (typeof value === 'string' && !isNaN(Number(value))) {
                                 numericVal = Number(value);
-                                // 警告由主线程发出
                             } else if (value === null) {
                                 numericVal = null;
                             } else {
@@ -469,7 +597,6 @@
                         });
                     });
 
-                    // 准备传输的数据（不能包含Map，转为普通对象）
                     self.postMessage({
                         type: 'result',
                         traces: seriesData,
@@ -482,45 +609,84 @@
             const blob = new Blob([workerCode], { type: 'application/javascript' });
             const workerUrl = URL.createObjectURL(blob);
             worker = new Worker(workerUrl);
-            URL.revokeObjectURL(workerUrl); // 立即释放，但worker仍可使用
+            URL.revokeObjectURL(workerUrl);
 
-            // 监听worker消息
             worker.onmessage = function(msg) {
                 setLoading(false);
                 const data = msg.data;
                 if (data.type === 'warning') {
                     console.warn('[Worker]', data.message);
+                    showError(data.message); // 警告也显示给用户
                 } else if (data.type === 'result') {
                     const { traces: seriesData, paths, pointCount } = data;
+                    currentPointCount = pointCount;
 
-                    // 构建 traces 数组 (Plotly格式)
+                    // 构建 traces 数组 (使用scattergl)
                     const indices = Array.from({ length: pointCount }, (_, i) => i);
                     const traces = paths.map(path => ({
                         name: path,
-                        type: 'scatter',
+                        type: 'scattergl',          // WebGL渲染
                         mode: 'lines+markers',
                         x: indices,
                         y: seriesData[path],
-                        line: { width: 2.2 },
-                        marker: { size: 5, opacity: 0.8 },
+                        line: { width: 1.8 },
+                        marker: { size: 3, opacity: 0.7 },
                         connectgaps: false
                     }));
 
-                    // 布局：dragmode='pan', scrollZoom:true, 固定大尺寸
+                    currentTraces = traces; // 保存以供滑块更新
+
+                    // 计算数据范围用于滑块初始值
+                    let globalYMin = Infinity, globalYMax = -Infinity;
+                    traces.forEach(t => {
+                        const y = t.y.filter(v => v !== null);
+                        if (y.length) {
+                            globalYMin = Math.min(globalYMin, ...y);
+                            globalYMax = Math.max(globalYMax, ...y);
+                        }
+                    });
+                    if (globalYMin === Infinity) globalYMin = 0;
+                    if (globalYMax === -Infinity) globalYMax = 100;
+
+                    // 更新滑块范围 (Y轴)
+                    yMinSlider.min = globalYMin;
+                    yMinSlider.max = globalYMax;
+                    yMinSlider.value = globalYMin;
+                    yMinSlider.step = (globalYMax - globalYMin) / 100 || 0.1;
+                    yMinVal.textContent = globalYMin.toFixed(2);
+
+                    yMaxSlider.min = globalYMin;
+                    yMaxSlider.max = globalYMax;
+                    yMaxSlider.value = globalYMax;
+                    yMaxSlider.step = (globalYMax - globalYMin) / 100 || 0.1;
+                    yMaxVal.textContent = globalYMax.toFixed(2);
+
+                    // X轴范围 (0 到 pointCount-1)
+                    const xMin = 0, xMax = pointCount - 1;
+                    xMinSlider.min = xMin;
+                    xMinSlider.max = xMax;
+                    xMinSlider.value = xMin;
+                    xMinVal.textContent = xMin;
+
+                    xMaxSlider.min = xMin;
+                    xMaxSlider.max = xMax;
+                    xMaxSlider.value = xMax;
+                    xMaxVal.textContent = xMax;
+
+                    // 布局：禁用滚轮缩放，dragmode='pan', 固定大尺寸
                     const layout = {
                         title: '深层嵌套折线图 (叶节点路径为图例)',
-                        dragmode: 'pan',          // 平移模式，禁用矩形缩放
-                        scrollZoom: true,         // 允许滚轮缩放
+                        dragmode: 'pan',
+                        scrollZoom: false,           // 禁用滚轮缩放
                         xaxis: {
                             title: '数组索引',
-                            tickmode: 'linear',
-                            tick0: 0,
-                            dtick: 1,
+                            range: [xMin, xMax],
                             showgrid: true,
                             gridcolor: '#e2e8f0'
                         },
                         yaxis: {
                             title: '数值',
+                            range: [globalYMin, globalYMax],
                             showgrid: true,
                             gridcolor: '#e2e8f0'
                         },
@@ -536,12 +702,12 @@
                         margin: { t: 50, b: 100, l: 60, r: 40 },
                         plot_bgcolor: '#fcfdff',
                         paper_bgcolor: '#ffffff',
-                        width: 2000,               // 固定大尺寸
+                        width: 2000,
                         height: 1200,
-                        autosize: false            // 关闭自动调整
+                        autosize: false
                     };
 
-                    Plotly.newPlot(chartDiv, traces, layout, { responsive: false }) // 因为固定尺寸，不启用responsive
+                    Plotly.newPlot(chartDiv, traces, layout, { responsive: false })
                         .then(() => {
                             updateStats(traces.length, pointCount, paths);
                         })
@@ -567,7 +733,6 @@
                 return;
             }
 
-            // 解析JSON（主线程只做初步解析，不处理深层遍历）
             let rawData;
             try {
                 rawData = JSON.parse(jsonString);
@@ -585,17 +750,37 @@
                 return;
             }
 
-            // 显示加载提示
             setLoading(true);
 
-            // 确保worker已初始化
             if (!worker) {
                 initWorker();
             }
 
-            // 将数据发送给worker处理
             worker.postMessage(rawData);
         }
+
+        // 滑块事件：更新轴范围
+        function updateXRange() {
+            const min = parseFloat(xMinSlider.value);
+            const max = parseFloat(xMaxSlider.value);
+            if (min >= max) return;
+            xMinVal.textContent = min;
+            xMaxVal.textContent = max;
+            Plotly.relayout(chartDiv, { 'xaxis.range': [min, max] });
+        }
+        function updateYRange() {
+            const min = parseFloat(yMinSlider.value);
+            const max = parseFloat(yMaxSlider.value);
+            if (min >= max) return;
+            yMinVal.textContent = min.toFixed(2);
+            yMaxVal.textContent = max.toFixed(2);
+            Plotly.relayout(chartDiv, { 'yaxis.range': [min, max] });
+        }
+
+        xMinSlider.addEventListener('input', updateXRange);
+        xMaxSlider.addEventListener('input', updateXRange);
+        yMinSlider.addEventListener('input', updateYRange);
+        yMaxSlider.addEventListener('input', updateYRange);
 
         // 事件绑定
         drawBtn.addEventListener('click', () => drawFromJSON(textarea.value));
@@ -616,7 +801,7 @@
 
         // 页面加载后初始化worker并绘制示例
         window.addEventListener('load', () => {
-            initWorker();               // 提前初始化
+            initWorker();
             drawFromJSON(textarea.value);
         });
     })();
