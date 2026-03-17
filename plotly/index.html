@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Plotly 滑块控制X/Y轴范围 · 大JSON流畅渲染</title>
+    <title>Plotly 按钮缩放X/Y · 图例固定左上角</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
         * {
@@ -27,7 +27,7 @@
             border-radius: 32px;
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
             padding: 32px 36px;
-            margin: 0 60px; /* 给左右滑块留空间 */
+            margin: 0 60px; /* 给左右按钮组留空间 */
         }
         h2 {
             margin: 0 0 8px 0;
@@ -195,15 +195,14 @@
             padding-top: 18px;
         }
 
-        /* ---------- 固定滑块（窗口两侧） ---------- */
-        .slider-panel {
+        /* ---------- 固定按钮组（窗口两侧） ---------- */
+        .button-panel {
             position: fixed;
             top: 50%;
             transform: translateY(-50%);
             display: flex;
             flex-direction: column;
-            align-items: center;
-            gap: 20px;
+            gap: 15px;
             background: rgba(255,255,255,0.9);
             backdrop-filter: blur(8px);
             padding: 20px 12px;
@@ -212,105 +211,73 @@
             border: 1px solid #e2e8f0;
             z-index: 1000;
         }
-        .slider-panel.left {
+        .button-panel.left {
             left: 10px;
         }
-        .slider-panel.right {
+        .button-panel.right {
             right: 10px;
         }
-        .slider-group {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        .zoom-btn {
+            background: white;
+            border: 1px solid #cbd5e1;
+            width: 60px;
+            height: 60px;
+            border-radius: 30px;
+            font-size: 1.4rem;
+            font-weight: 700;
             color: #1e293b;
-            font-weight: 600;
-            font-size: 0.8rem;
-        }
-        .slider-group label {
-            writing-mode: vertical-rl;
-            text-orientation: mixed;
-            margin-bottom: 8px;
-            color: #475569;
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        /* 竖向滑块：通过宽高反转实现 */
-        .slider-group input[type=range] {
-            width: 150px;            /* 滑块长度 */
-            height: 6px;              /* 滑块厚度 */
-            background: #d1d5db;
-            border-radius: 10px;
-            -webkit-appearance: none;
-            appearance: none;
-            transform: rotate(270deg); /* 旋转使水平变为垂直 */
-            margin: 50px 0;           /* 调整位置使其居中 */
             cursor: pointer;
+            transition: 0.15s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        .slider-group input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            background: #3b82f6;
-            border-radius: 50%;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-            border: 2px solid white;
+        .zoom-btn:hover {
+            background: #f1f5f9;
+            border-color: #94a3b8;
+            transform: scale(1.05);
         }
-        .slider-group input[type=range]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            background: #3b82f6;
-            border-radius: 50%;
-            border: 2px solid white;
+        .zoom-btn.primary {
+            background: #1e293b;
+            color: white;
+            border-color: #1e293b;
         }
-        .range-value {
-            margin-top: 12px;
-            font-size: 0.8rem;
-            background: #f1f4f9;
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-weight: 500;
+        .zoom-btn.primary:hover {
+            background: #0f172a;
+        }
+        .button-label {
+            text-align: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #475569;
+            margin-top: -8px;
         }
     </style>
 </head>
 <body>
-    <!-- 左侧滑块组：X轴 min / max (固定在窗口) -->
-    <div class="slider-panel left">
-        <div class="slider-group">
-            <label>X 最小值</label>
-            <input type="range" id="xMinSlider" min="0" max="100" value="0" step="1">
-            <span class="range-value" id="xMinVal">0</span>
-        </div>
-        <div class="slider-group">
-            <label>X 最大值</label>
-            <input type="range" id="xMaxSlider" min="0" max="100" value="100" step="1">
-            <span class="range-value" id="xMaxVal">100</span>
-        </div>
+    <!-- 左侧按钮组：X轴放大/缩小 -->
+    <div class="button-panel left">
+        <div class="button-label">X轴</div>
+        <button class="zoom-btn" id="zoomXIn" title="放大X轴">➕</button>
+        <button class="zoom-btn" id="zoomXOut" title="缩小X轴">➖</button>
     </div>
 
-    <!-- 右侧滑块组：Y轴 min / max (固定在窗口) -->
-    <div class="slider-panel right">
-        <div class="slider-group">
-            <label>Y 最小值</label>
-            <input type="range" id="yMinSlider" min="0" max="100" value="0" step="0.1">
-            <span class="range-value" id="yMinVal">0</span>
-        </div>
-        <div class="slider-group">
-            <label>Y 最大值</label>
-            <input type="range" id="yMaxSlider" min="0" max="100" value="100" step="0.1">
-            <span class="range-value" id="yMaxVal">100</span>
-        </div>
+    <!-- 右侧按钮组：Y轴放大/缩小 -->
+    <div class="button-panel right">
+        <div class="button-label">Y轴</div>
+        <button class="zoom-btn" id="zoomYIn" title="放大Y轴">➕</button>
+        <button class="zoom-btn" id="zoomYOut" title="缩小Y轴">➖</button>
     </div>
 
     <div class="card">
-        <h2>🌿 滑块控制X/Y轴范围 · 大JSON流畅渲染</h2>
+        <h2>🌿 按钮缩放X/Y · 图例固定左上角</h2>
         <div class="sub">
             输入一个对象数组，支持任意深度嵌套。每条折线由<strong>叶节点的完整路径</strong>命名（如 <code>metrics.disk.used</code>），
             值为该路径的数值（非数值转为 <code>null</code>，显示为断点）。数组索引为 X 轴。<br>
-            ✅ 左右两侧固定滑块：左侧控制X轴范围，右侧控制Y轴范围（上下滑动）<br>
-            ✅ 滚轮/触屏缩放已禁用，仅滑块控制视图<br>
-            ✅ 使用 WebGL (scattergl) 渲染，折线超200条时警告并限制
+            ✅ 左右两侧固定按钮：左侧控制X轴缩放，右侧控制Y轴缩放（以当前视图中心缩放20%）<br>
+            ✅ 图例固定在画布左上角，不会因平移而消失<br>
+            ✅ 拖拽平移 (<code>dragmode: 'pan'</code>) · 禁用滚轮缩放 · WebGL渲染 · 折线超200条时警告并限制
         </div>
 
         <textarea id="jsonInput" placeholder='例如：[{"a":1,"b":{"c":2}}, {"a":3,"b":{"c":4}}]'>[
@@ -398,7 +365,7 @@
 
         <div class="footer-note">
             ⚡ 数组索引为 X 轴 · 路径中的数组元素会被展开为 <code>path.[index]</code> · 非数值或缺失显示为断点<br>
-            🎛️ 左侧滑块控制X轴范围，右侧滑块控制Y轴范围 | 图表可滚动查看
+            🎛️ 左右按钮控制X/Y轴缩放 (以当前视图中心缩放20%) | 图例固定在左上角，不随平移移动
         </div>
     </div>
 
@@ -414,17 +381,13 @@
         const statsPanel = document.getElementById('statsPanel');
         const loadingOverlay = document.getElementById('loadingOverlay');
 
-        // 滑块元素
-        const xMinSlider = document.getElementById('xMinSlider');
-        const xMaxSlider = document.getElementById('xMaxSlider');
-        const yMinSlider = document.getElementById('yMinSlider');
-        const yMaxSlider = document.getElementById('yMaxSlider');
-        const xMinVal = document.getElementById('xMinVal');
-        const xMaxVal = document.getElementById('xMaxVal');
-        const yMinVal = document.getElementById('yMinVal');
-        const yMaxVal = document.getElementById('yMaxVal');
+        // 按钮元素
+        const zoomXIn = document.getElementById('zoomXIn');
+        const zoomXOut = document.getElementById('zoomXOut');
+        const zoomYIn = document.getElementById('zoomYIn');
+        const zoomYOut = document.getElementById('zoomYOut');
 
-        // 示例数据（与textarea默认一致）
+        // 示例数据
         const EXAMPLE_JSON = `[
   {
     "time": "2025-01",
@@ -509,8 +472,6 @@
 
         // --- 创建 Web Worker (内联 Blob) ---
         let worker = null;
-        let currentTraces = [];      // 保存当前绘制的traces，用于滑块更新范围时重新relayout
-        let currentPointCount = 0;
 
         function initWorker() {
             if (worker) return;
@@ -619,7 +580,6 @@
                     showError(data.message); // 警告也显示给用户
                 } else if (data.type === 'result') {
                     const { traces: seriesData, paths, pointCount } = data;
-                    currentPointCount = pointCount;
 
                     // 构建 traces 数组 (使用scattergl)
                     const indices = Array.from({ length: pointCount }, (_, i) => i);
@@ -634,9 +594,7 @@
                         connectgaps: false
                     }));
 
-                    currentTraces = traces; // 保存以供滑块更新
-
-                    // 计算数据范围用于滑块初始值
+                    // 计算数据范围用于初始轴范围
                     let globalYMin = Infinity, globalYMax = -Infinity;
                     traces.forEach(t => {
                         const y = t.y.filter(v => v !== null);
@@ -648,36 +606,14 @@
                     if (globalYMin === Infinity) globalYMin = 0;
                     if (globalYMax === -Infinity) globalYMax = 100;
 
-                    // 更新滑块范围 (Y轴)
-                    yMinSlider.min = globalYMin;
-                    yMinSlider.max = globalYMax;
-                    yMinSlider.value = globalYMin;
-                    yMinSlider.step = (globalYMax - globalYMin) / 100 || 0.1;
-                    yMinVal.textContent = globalYMin.toFixed(2);
-
-                    yMaxSlider.min = globalYMin;
-                    yMaxSlider.max = globalYMax;
-                    yMaxSlider.value = globalYMax;
-                    yMaxSlider.step = (globalYMax - globalYMin) / 100 || 0.1;
-                    yMaxVal.textContent = globalYMax.toFixed(2);
-
                     // X轴范围 (0 到 pointCount-1)
                     const xMin = 0, xMax = pointCount - 1;
-                    xMinSlider.min = xMin;
-                    xMinSlider.max = xMax;
-                    xMinSlider.value = xMin;
-                    xMinVal.textContent = xMin;
 
-                    xMaxSlider.min = xMin;
-                    xMaxSlider.max = xMax;
-                    xMaxSlider.value = xMax;
-                    xMaxVal.textContent = xMax;
-
-                    // 布局：禁用滚轮缩放，dragmode='pan', 固定大尺寸
+                    // 布局：dragmode='pan', 禁用滚轮缩放, 图例固定在左上角
                     const layout = {
                         title: '深层嵌套折线图 (叶节点路径为图例)',
                         dragmode: 'pan',
-                        scrollZoom: false,           // 禁用滚轮缩放
+                        scrollZoom: false,
                         xaxis: {
                             title: '数组索引',
                             range: [xMin, xMax],
@@ -692,12 +628,14 @@
                         },
                         hovermode: 'x unified',
                         legend: {
-                            orientation: 'h',
-                            y: -0.25,
-                            x: 0.5,
-                            xanchor: 'center',
-                            font: { size: 10 },
-                            itemsizing: 'constant'
+                            x: 0.01,                // 固定在画布左上角
+                            y: 0.99,
+                            xanchor: 'left',
+                            yanchor: 'top',
+                            bgcolor: 'rgba(255,255,255,0.8)',
+                            bordercolor: '#cbd5e1',
+                            borderwidth: 1,
+                            font: { size: 10 }
                         },
                         margin: { t: 50, b: 100, l: 60, r: 40 },
                         plot_bgcolor: '#fcfdff',
@@ -759,28 +697,35 @@
             worker.postMessage(rawData);
         }
 
-        // 滑块事件：更新轴范围
-        function updateXRange() {
-            const min = parseFloat(xMinSlider.value);
-            const max = parseFloat(xMaxSlider.value);
-            if (min >= max) return;
-            xMinVal.textContent = min;
-            xMaxVal.textContent = max;
-            Plotly.relayout(chartDiv, { 'xaxis.range': [min, max] });
-        }
-        function updateYRange() {
-            const min = parseFloat(yMinSlider.value);
-            const max = parseFloat(yMaxSlider.value);
-            if (min >= max) return;
-            yMinVal.textContent = min.toFixed(2);
-            yMaxVal.textContent = max.toFixed(2);
-            Plotly.relayout(chartDiv, { 'yaxis.range': [min, max] });
+        // --- 缩放按钮逻辑 ---
+        function zoomX(factor) {
+            const layout = chartDiv.layout;
+            if (!layout || !layout.xaxis) return;
+            const currentRange = layout.xaxis.range;
+            if (!currentRange) return;
+            const center = (currentRange[0] + currentRange[1]) / 2;
+            const halfSpan = (currentRange[1] - currentRange[0]) / 2 * factor;
+            const newMin = center - halfSpan;
+            const newMax = center + halfSpan;
+            Plotly.relayout(chartDiv, { 'xaxis.range': [newMin, newMax] });
         }
 
-        xMinSlider.addEventListener('input', updateXRange);
-        xMaxSlider.addEventListener('input', updateXRange);
-        yMinSlider.addEventListener('input', updateYRange);
-        yMaxSlider.addEventListener('input', updateYRange);
+        function zoomY(factor) {
+            const layout = chartDiv.layout;
+            if (!layout || !layout.yaxis) return;
+            const currentRange = layout.yaxis.range;
+            if (!currentRange) return;
+            const center = (currentRange[0] + currentRange[1]) / 2;
+            const halfSpan = (currentRange[1] - currentRange[0]) / 2 * factor;
+            const newMin = center - halfSpan;
+            const newMax = center + halfSpan;
+            Plotly.relayout(chartDiv, { 'yaxis.range': [newMin, newMax] });
+        }
+
+        zoomXIn.addEventListener('click', () => zoomX(0.8));   // 放大: 范围缩小到80%
+        zoomXOut.addEventListener('click', () => zoomX(1.2));  // 缩小: 范围扩大到120%
+        zoomYIn.addEventListener('click', () => zoomY(0.8));
+        zoomYOut.addEventListener('click', () => zoomY(1.2));
 
         // 事件绑定
         drawBtn.addEventListener('click', () => drawFromJSON(textarea.value));
